@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="theme-color" content="#0d1117">
+    <meta name="description" content="无股神经 - A股智能分析工具，RSI精准填充，支持日周月K线分析">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="无股神经">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="pc.png">
+    <link rel="apple-touch-icon" href="app.png">
+    <title>无股神经 · RSI精准分析 | A股智能分析工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.1/Sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c2333;
+            --bg-card: #21262d;
+            --border-color: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --rsi-yellow: #f5b042;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: baseline; gap: 16px; }
+
+        /* 无股神经 Logo 样式 */
+        .app-logo-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .app-logo-title {
+            font-size: 26px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f5b042, #ef4444, #22c55e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            cursor: default;
+            user-select: none;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(245, 176, 66, 0.3);
+        }
+        .app-logo-tooltip {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            padding-top: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+        .app-logo-wrapper:hover .app-logo-tooltip,
+        .app-logo-wrapper.tooltip-visible .app-logo-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        .tooltip-content {
+            background: #ffffff;
+            color: #1a1a2e;
+            padding: 18px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            font-size: 16px;
+            line-height: 1.9;
+            max-width: 800px;
+            min-width: 400px;
+            text-align: left;
+        }
+        .tooltip-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .tooltip-content p {
+            margin: 0 0 6px 0;
+            color: #3d4852;
+        }
+        .tooltip-content p:last-child {
+            margin-bottom: 0;
+        }
+        .tooltip-footer {
+            font-weight: 700;
+            color: #c05621 !important;
+            margin-top: 14px !important;
+            font-style: italic;
+            font-size: 17px !important;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .app-logo-title {
+                font-size: 22px;
+            }
+            .tooltip-content {
+                max-width: 95vw;
+                font-size: 15px;
+                min-width: 300px;
+            }
+            .tooltip-title {
+                font-size: 17px;
+            }
+            .tooltip-footer {
+                font-size: 16px !important;
+            }
+        }
+        .header-subtitle { font-size: 11px; color: var(--text-muted); }
+        .btn { padding: 8px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; font-size: 14px; transition: all 0.15s; }
+        .btn:hover { background: var(--bg-card); border-color: var(--accent-blue); }
+        .btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); border-color: #3b82f6; color: #fff; }
+        .btn-sm { padding: 3px 8px; font-size: 11px; }
+        .btn-danger { background: transparent; border-color: var(--accent-red); color: var(--accent-red); }
+        .btn-danger:hover { background: rgba(248, 81, 73, 0.15); }
+
+        .main-content { flex: 1; display: flex; overflow: hidden; }
+        .sidebar { width: 280px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; flex-shrink: 0; }
+        .sidebar-section { padding: 14px; border-bottom: 1px solid var(--border-color); }
+        .sidebar-title { font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 10px; letter-spacing: 1px; }
+        .search-box { display: flex; gap: 6px; position: relative; }
+        .search-input { flex: 1; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; color: var(--text-primary); font-size: 15px; outline: none; }
+        .search-input:focus { border-color: var(--accent-blue); }
+        .search-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; max-height: 260px; overflow-y: auto; z-index: 100; display: none; margin-top: 4px; }
+        .search-dropdown.show { display: block; }
+        .search-result-item { padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; font-size: 12px; transition: background 0.1s; border-bottom: 1px solid var(--border-color); }
+        .search-result-item:hover { background: var(--bg-tertiary); }
+        .search-result-code { font-family: monospace; font-weight: 600; color: var(--accent-blue); }
+        .search-result-name { color: var(--text-secondary); }
+
+        .stock-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .stock-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 7px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; transition: all 0.1s; }
+        .stock-item:hover { background: var(--bg-tertiary); }
+        .stock-item.active { background: var(--bg-card); border-color: var(--accent-blue); }
+        .stock-info { flex: 1; }
+        .stock-code { font-family: monospace; font-size: 14px; font-weight: 600; }
+        .stock-name { font-size: 12px; color: var(--text-secondary); }
+        .stock-del { opacity: 0; transition: opacity 0.1s; }
+        .stock-item:hover .stock-del { opacity: 1; }
+
+        .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .toolbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+        .stock-info-bar { display: flex; align-items: baseline; gap: 12px; }
+        .stock-name-big { font-size: 22px; font-weight: 700; }
+        .stock-code-big { font-size: 13px; color: var(--text-secondary); font-family: monospace; }
+        .price-info { font-size: 24px; font-weight: 700; font-family: monospace; }
+        .period-buttons { display: flex; gap: 5px; }
+        .period-btn { padding: 6px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: #2d3748; color: #cbd5e1; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .period-btn:hover { background: #3b4a5f; border-color: var(--accent-blue); color: white; }
+        .period-btn.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); box-shadow: 0 0 6px rgba(88, 166, 255, 0.6); }
+
+        .chart-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-primary); position: relative; }
+        .chart-container { flex: 1; position: relative; min-height: 0; }
+        canvas { width: 100%; height: 100%; display: block; }
+        .rsi-legend-bar { background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 4px 16px; display: flex; gap: 20px; font-size: 11px; }
+        .resize-handle { height: 5px; background: var(--border-color); cursor: ns-resize; flex-shrink: 0; }
+        .resize-handle:hover { background: var(--accent-blue); }
+
+        .event-table-wrapper { background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; flex-direction: column; height: 280px; flex-shrink: 0; }
+        .event-header { padding: 8px 14px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+        .event-scroll { flex: 1; overflow-x: auto; overflow-y: auto; position: relative; }
+        .event-table { border-collapse: collapse; font-size: 13px; min-width: 100%; table-layout: fixed; }
+        .event-table th, .event-table td { border-right: 1px solid var(--border-color); border-bottom: 1px solid rgba(48, 54, 61, 0.4); padding: 6px 4px; text-align: center; vertical-align: middle; white-space: nowrap; transition: all 0.2s ease; }
+        .event-table th { background: var(--bg-tertiary); position: sticky; top: 0; font-weight: 600; color: var(--accent-blue); min-width: 120px; }
+        .event-table th:first-child, .event-table td:first-child { background: var(--bg-secondary); position: sticky; left: 0; z-index: 2; font-weight: 600; text-align: left; min-width: 110px; }
+        .event-table td:first-child { background: var(--bg-card); }
+        .event-table .col-hover { min-width: 210px !important; background-color: rgba(88, 166, 255, 0.2); }
+        /* 实时列：固定在表格最右侧 */
+        .event-table th.live-col, .event-table td.live-col {
+            position: sticky; right: 0; z-index: 3;
+            min-width: 170px;
+            border-left: 2px solid var(--accent-blue) !important;
+        }
+        .event-table th.live-col { background: var(--bg-tertiary); }
+        .event-table td.live-col { background: var(--bg-card); }
+        .sortable-drag { opacity: 0.5; background: var(--bg-tertiary); }
+
+        /* 电池条样式 */
+        .rsi-battery { display: flex; flex-direction: column; justify-content: center; width: 16px; height: 60px; background: #1e1e2e; border-radius: 3px; overflow: hidden; flex-shrink: 0; border: 1px solid #3a3a4a; }
+        .battery-grid { display: flex; flex-direction: column; height: 100%; width: 100%; }
+        .battery-segment { flex: 1; width: 100%; border-bottom: 1px solid #2a2a3a; transition: background 0.1s; }
+        .battery-segment:last-child { border-bottom: none; }
+        .battery-segment.empty { background: #2d2d3a; }
+        .battery-segment.filled-green { background: #2ea043; }
+        .battery-segment.filled-red { background: #f85149; }
+
+        .event-cell { display: flex; align-items: stretch; gap: 6px; min-width: 130px; }
+        .event-data { flex: 1; text-align: left; display: flex; flex-direction: column; line-height: 1.4; }
+        .event-price { font-weight: 600; font-family: monospace; font-size: 14px; color: var(--text-primary); }
+        .event-rsi { font-size: 12px; color: var(--rsi-yellow); font-weight: 500; }
+        .passive-icon { display: inline-block; width: 10px; height: 10px; background: #6e7681; border-radius: 2px; margin-right: 4px; }
+        .event-badge { display: inline-block; border-radius: 4px; padding: 3px 8px; font-size: 12px; font-weight: bold; margin-bottom: 5px; }
+        .buy-badge { background: #ef4444; color: white; }
+        .sell-badge { background: #22c55e; color: black; }
+        .mark-badge-daily { background: #f59e0b; color: black; }
+        .mark-badge-weekly { background: #87ceeb; color: black; }
+        .mark-badge-monthly { background: #c084fc; color: white; }
+        .event-delete-btn { background: none; border: none; color: var(--accent-red); cursor: pointer; margin-left: 6px; font-size: 12px; }
+
+        /* 提醒按钮样式 */
+        .stock-alert-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 4px; opacity: 0; transition: opacity 0.15s; border-radius: 4px; }
+        .stock-item:hover .stock-alert-btn { opacity: 1; }
+        .stock-alert-btn.has-alert { opacity: 1 !important; animation: bellRing 0.5s ease; }
+        @keyframes bellRing { 0%,100%{transform:rotate(0)} 25%{transform:rotate(15deg)} 50%{transform:rotate(-15deg)} 75%{transform:rotate(8deg)} }
+        .stock-alert-dot { display: inline-block; width: 6px; height: 6px; background: var(--accent-red); border-radius: 50%; position: absolute; top: -2px; right: -2px; }
+
+        /* 提醒弹窗 */
+        .alert-modal .alert-field { margin-bottom: 12px; }
+        .alert-modal .alert-field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+        .alert-modal .alert-field input { width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 7px 10px; color: var(--text-primary); font-size: 14px; outline: none; }
+        .alert-modal .alert-field input:focus { border-color: var(--accent-blue); }
+        .alert-modal .alert-hint { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+        /* 通知弹窗动画 */
+        .alert-notification { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0.8); background: var(--bg-card); border: 2px solid var(--rsi-yellow); border-radius: 14px; padding: 20px 24px; z-index: 3000; box-shadow: 0 12px 40px rgba(0,0,0,0.7); min-width: 320px; max-width: 420px; opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; }
+        .alert-notification.show { opacity: 1; transform: translate(-50%,-50%) scale(1); pointer-events: auto; }
+        .alert-notification .alert-notify-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+        .alert-notification .alert-notify-body { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+        .alert-notification .alert-notify-close { position: absolute; top: 8px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 18px; }
+
+        /* 实时刷新按钮 */
+        .live-refresh-btn { cursor: pointer; background: rgba(88,166,255,0.15); border: 1px solid var(--accent-blue); border-radius: 50%; font-size: 12px; padding: 1px 3px; margin-left: 4px; color: var(--accent-blue); transition: all 0.2s; vertical-align: middle; }
+        .live-refresh-btn:hover { background: rgba(88,166,255,0.3); transform: scale(1.1); }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        .modal-overlay.show { opacity: 1; pointer-events: all; }
+        .modal { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; width: 360px; }
+        .modal input, .modal select { background: var(--bg-primary); border: 1px solid var(--border-color); padding: 6px 8px; color: white; border-radius: 6px; width: 100%; margin-top: 4px; }
+        .toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; display: flex; flex-direction: column; gap: 6px; }
+        .toast { background: var(--bg-card); border-left: 3px solid var(--accent-blue); border-radius: 8px; padding: 10px 14px; font-size: 14px; animation: slideIn 0.2s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .loading-overlay { position: absolute; inset: 0; background: rgba(13,17,23,0.8); display: flex; align-items: center; justify-content: center; z-index: 10; }
+        .status-bar { background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 5px 16px; font-size: 12px; display: flex; justify-content: space-between; }
+        .loading-spinner { width: 14px; height: 14px; border: 2px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="header">
+        <div class="header-left">
+            <div class="app-logo-wrapper">
+                <div class="app-logo-title">无股神经</div>
+                <div class="app-logo-tooltip">
+                    <div class="tooltip-content">
+                        <div class="tooltip-title">📜 神功由来</div>
+                        <p>创始人曾长期吸食A股。</p>
+                        <p>病情最严重时，每5分钟看一次账户。</p>
+                        <p>后因账户余额归零，被市场强制戒断。</p>
+                        <p>在绝情谷底闭关期间，悟出了：看盘时间和亏损额度成正比，</p>
+                        <p>真正赚钱的人，往往不是最聪明的人，而是最不折腾的人。</p>
+                        <p class="tooltip-footer">遂创此神功，救天下韭菜于水火。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-sm" id="exportBtn">📤 导出</button>
+            <button class="btn btn-sm" id="importBtn">📥 导入</button>
+            <input type="file" id="importFile" accept=".json" style="display:none">
+        </div>
+    </div>
+    <div class="main-content">
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-title">🔍 添加股票 (拼音/代码/名称)</div>
+                <div class="search-box" style="position: relative;">
+                    <input class="search-input" id="stockInput" placeholder="输入代码/拼音/名称 如 贵州茅台, 600519, maotai" autocomplete="off">
+                    <button class="btn btn-primary" id="addBtn">添加</button>
+                    <div class="search-dropdown" id="searchDropdown"></div>
+                </div>
+                <div style="font-size:10px; color:#6e7681; margin-top:6px">点击自选股查看K线 · 拖拽表格第一列可排序</div>
+            </div>
+            <div class="sidebar-section" style="padding-bottom:6px">
+                <div class="sidebar-title">⭐ 自选股票 <span id="watchlistCount">0</span></div>
+            </div>
+            <div class="stock-list" id="stockList"></div>
+        </div>
+
+        <div class="content-area">
+            <div id="welcomeScreen" style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; color:#6e7681">
+                <div style="font-size:56px">📊</div>
+                <div style="font-size:16px">选择左侧自选股，开始分析</div>
+                <div style="font-size:14px">点击K线柱 → 添加买卖/标记事件 → 自动生成对齐表格</div>
+            </div>
+
+            <div id="stockView" style="display:none; flex:1; flex-direction:column; overflow:hidden">
+                <div class="toolbar">
+                    <div class="stock-info-bar">
+                        <span class="stock-name-big" id="toolbarName">--</span>
+                        <span class="stock-code-big" id="toolbarCode">--</span>
+                        <span class="price-info" id="toolbarPrice">--</span>
+                        <span id="toolbarChange" style="font-size:13px">--</span>
+                    </div>
+                    <div class="period-buttons">
+                        <button class="period-btn active" id="periodDaily">日K</button>
+                        <button class="period-btn" id="periodWeekly">周K</button>
+                        <button class="period-btn" id="periodMonthly">月K</button>
+                    </div>
+                    <button class="btn btn-sm" id="refreshBtn">🔄 刷新</button>
+                </div>
+
+                <div class="chart-panel" id="chartPanel">
+                    <div class="chart-container" id="chartContainer">
+                        <canvas id="klineCanvas"></canvas>
+                        <div class="loading-overlay" id="chartLoading" style="display:none"><div style="display:flex; gap:8px"><div class="loading-spinner"></div> 加载中...</div></div>
+                    </div>
+                    <div class="rsi-legend-bar">
+                        <span><span style="background:#f59e0b; display:inline-block; width:12px; height:3px;"></span> RSI(6): <span id="rsi1Val">--</span></span>
+                    </div>
+                </div>
+
+                <div class="resize-handle" id="resizeHandle"></div>
+
+                <div class="event-table-wrapper" id="eventTableWrapper">
+                    <div class="event-header">
+                        <span>📋 全局对齐事件表 (拖拽第一列可调整股票顺序)</span>
+                        <button class="btn btn-sm" id="clearAllEventsBtn" style="background:transparent; color:#f85149">🗑 清空所有事件</button>
+                    </div>
+                    <div class="event-scroll" id="eventScroll">
+                        <table class="event-table" id="eventTable">
+                            <thead id="eventTableHead"></thead>
+                            <tbody id="eventTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="status-bar">
+        <div><span id="statusDot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#3fb950;margin-right:5px"></span><span id="statusText">就绪</span></div>
+        <div id="updateTime">--</div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="eventModal">
+    <div class="modal">
+        <div class="modal-title" style="font-weight:600; margin-bottom:12px">✏️ 添加事件</div>
+        <div class="modal-body">
+            <label>事件类型:</label>
+            <select id="eventTypeSelect">
+                <option value="buy">买入 🟢</option>
+                <option value="sell">卖出 🔴</option>
+                <option value="mark">标记 ⚡</option>
+            </select>
+            <label style="margin-top:12px">精确时间 (可修改):</label>
+            <input type="datetime-local" id="eventTimeLocal" step="1">
+            <label style="margin-top:12px">价格 (元):</label>
+            <input type="number" id="eventPrice" step="0.01" placeholder="自动填充收盘价">
+            <div style="margin-top:10px; font-size:11px; color:#8b949e">📊 当前K线RSI(6): <span id="previewRsi">--</span></div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px">
+            <button class="btn" id="cancelEventBtn">取消</button>
+            <button class="btn btn-primary" id="confirmEventBtn">确认</button>
+        </div>
+    </div>
+</div>
+<!-- 提醒设置弹窗 -->
+<div class="modal-overlay" id="alertModal">
+    <div class="modal alert-modal">
+        <div style="font-weight:600; margin-bottom:14px; font-size:15px;">🔔 设置提醒 - <span id="alertStockLabel">--</span></div>
+        <div class="alert-field">
+            <label>📈 股价上涨到 (元) <span class="alert-hint">到达此价格时通知</span></label>
+            <input type="number" id="alertPriceAbove" step="0.01" placeholder="留空则不提醒">
+        </div>
+        <div class="alert-field">
+            <label>📉 股价下跌到 (元) <span class="alert-hint">跌到此价格时通知</span></label>
+            <input type="number" id="alertPriceBelow" step="0.01" placeholder="留空则不提醒">
+        </div>
+        <div class="alert-field">
+            <label>📊 日RSI(6)到达 <span class="alert-hint">日线RSI到达此数值时通知</span></label>
+            <input type="number" id="alertRsiDaily" step="0.1" min="0" max="100" placeholder="留空则不提醒，如70或30">
+        </div>
+        <div class="alert-field">
+            <label>📅 周RSI(6)到达 <span class="alert-hint">周线RSI到达此数值时通知</span></label>
+            <input type="number" id="alertRsiWeekly" step="0.1" min="0" max="100" placeholder="留空则不提醒，如70或30">
+        </div>
+        <div class="alert-field">
+            <label>📆 月RSI(6)到达 <span class="alert-hint">月线RSI到达此数值时通知</span></label>
+            <input type="number" id="alertRsiMonthly" step="0.1" min="0" max="100" placeholder="留空则不提醒，如70或30">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+            <button class="btn btn-danger btn-sm" id="clearAlertBtn">清除提醒</button>
+            <button class="btn" id="cancelAlertBtn">取消</button>
+            <button class="btn btn-primary" id="confirmAlertBtn">💾 保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 提醒通知弹窗 -->
+<div class="alert-notification" id="alertNotification">
+    <button class="alert-notify-close" id="alertNotifyClose">✕</button>
+    <div class="alert-notify-title" id="alertNotifyTitle"></div>
+    <div class="alert-notify-body" id="alertNotifyBody"></div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+    // ======================== 全局状态 ========================
+    let watchlist = [];
+    let currentStock = null;
+    let klineData = [];
+    let currentPeriod = "daily";
+    let globalEvents = [];
+    let stockEventValues = new Map();
+    let pendingKlineIdx = null, pendingKlineDate = null, pendingClosePrice = null, pendingRsiVal = null;
+    let currentHoverColumn = null, sortableInstance = null;
+    let liveDataCache = new Map(); // code -> {price, rsi, changePct, updateTime}
+    let liveDataCheckInterval = null; let lastScheduledRefresh = '';
+    let stockAlerts = new Map(); // code -> { priceAbove, priceBelow, rsiDaily, rsiWeekly, rsiMonthly }
+    let alertedCache = new Map(); // "code_type" -> timestamp 防止重复通知
+
+    function showToast(msg, type = "info") {
+        let container = document.getElementById("toastContainer");
+        let toast = document.createElement("div");
+        toast.className = "toast";
+        toast.innerText = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
+
+    function sortGlobalEvents() { globalEvents.sort((a, b) => a.timestamp - b.timestamp); }
+    function saveData() {
+        localStorage.setItem("watchlist_mid2", JSON.stringify(watchlist));
+        let eventStore = { globalEvents, stockEventValues: Array.from(stockEventValues.entries()).map(([k, v]) => [k, Array.from(v.entries())]) };
+        localStorage.setItem("eventSystem_mid2", JSON.stringify(eventStore));
+        localStorage.setItem("stockAlerts_mid2", JSON.stringify(Array.from(stockAlerts.entries())));
+    }
+    function loadData() {
+        let w = localStorage.getItem("watchlist_mid2");
+        if (w) watchlist = JSON.parse(w);
+        let eStore = localStorage.getItem("eventSystem_mid2");
+        if (eStore) {
+            let obj = JSON.parse(eStore);
+            globalEvents = obj.globalEvents || [];
+            stockEventValues.clear();
+            for (let [code, entries] of obj.stockEventValues) {
+                let inner = new Map();
+                for (let [eid, val] of entries) inner.set(eid, val);
+                stockEventValues.set(code, inner);
+            }
+            sortGlobalEvents();
+        }
+        let aStore = localStorage.getItem("stockAlerts_mid2");
+        if (aStore) {
+            stockAlerts = new Map(JSON.parse(aStore));
+        }
+        if (watchlist.length === 0) watchlist = [{ code: "600519", name: "贵州茅台" }, { code: "000858", name: "五粮液" }];
+        saveData();
+    }
+
+    // 搜索API
+    let searchTimer = null;
+    async function searchStocks(keyword) {
+        if (!keyword || keyword.length < 1) return [];
+        try {
+            let url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&count=15`;
+            let resp = await fetch(url);
+            let data = await resp.json();
+            if (data && data.QuotationCodeTable && data.QuotationCodeTable.Data) {
+                return data.QuotationCodeTable.Data.filter(item => {
+                    let code = item.Code;
+                    return code && code.length <= 6 && (code.startsWith('0') || code.startsWith('3') || code.startsWith('6'));
+                }).map(item => ({ code: item.Code, name: item.Name || item.ShortName || "未知" }));
+            }
+        } catch (e) { console.warn("搜索失败", e); }
+        return [];
+    }
+    function renderSearchDropdown(results) {
+        let dd = document.getElementById("searchDropdown");
+        if (!results.length) { dd.innerHTML = '<div class="search-result-item" style="color:#6e7681">未找到相关股票，可尝试输入完整代码</div>'; dd.classList.add("show"); return; }
+        let html = "";
+        for (let r of results) html += `<div class="search-result-item" data-code="${r.code}" data-name="${r.name}"><span class="search-result-code">${r.code}</span><span class="search-result-name">${r.name}</span></div>`;
+        dd.innerHTML = html; dd.classList.add("show");
+        document.querySelectorAll(".search-result-item").forEach(el => {
+            el.addEventListener("click", () => {
+                let code = el.dataset.code, name = el.dataset.name;
+                addToWatchlist(code, name);
+                document.getElementById("stockInput").value = "";
+                dd.classList.remove("show");
+            });
+        });
+    }
+    function onStockSearch(keyword) {
+        clearTimeout(searchTimer);
+        let dd = document.getElementById("searchDropdown");
+        if (!keyword || keyword.length < 1) { dd.classList.remove("show"); return; }
+        searchTimer = setTimeout(async () => {
+            let results = await searchStocks(keyword);
+            renderSearchDropdown(results);
+        }, 300);
+    }
+
+    async function fillStockHistoryEvents(stockCode) {
+        if (!globalEvents.length) return;
+        if (!stockEventValues.has(stockCode)) stockEventValues.set(stockCode, new Map());
+        let stockMap = stockEventValues.get(stockCode);
+        let needFetch = [];
+        for (let ev of globalEvents) if (!stockMap.has(ev.id)) needFetch.push({ eventId: ev.id, date: ev.datetimeStr.split(' ')[0] });
+        if (needFetch.length === 0) return;
+        let fetchPromises = needFetch.map(async (item) => {
+            let data = await getStockDataAtDate(stockCode, item.date);
+            return { eventId: item.eventId, data };
+        });
+        let results = await Promise.all(fetchPromises);
+        for (let res of results) {
+            if (res.data) {
+                stockMap.set(res.eventId, { type: 'passive', price: res.data.price, rsi1: res.data.rsi, dateIndex: -1, date: res.data.date });
+            } else {
+                stockMap.set(res.eventId, { type: 'passive', price: null, rsi1: null, date: res.date });
+            }
+        }
+        stockEventValues.set(stockCode, stockMap);
+        saveData();
+    }
+
+    async function addToWatchlist(code, name) {
+        if (watchlist.some(s => s.code === code)) { showToast(`${name} 已在自选列表中`, "info"); selectStock(code, name); return; }
+        showToast(`正在补齐 ${name} 的历史数据...`, "info");
+        watchlist.push({ code, name });
+        await fillStockHistoryEvents(code);
+        saveData();
+        renderWatchlist();
+        renderEventTable();
+        selectStock(code, name);
+        showToast(`✅ ${name} 已添加，历史数据已同步`, "success");
+    }
+
+    // API & RSI
+    function getSecId(code) { let c = String(code).replace(/[^0-9]/g, ''); return c.startsWith('6') ? `1.${c}` : `0.${c}`; }
+    async function fetchKline(code, period) {
+        let secid = getSecId(code);
+        let klt = { daily: 101, weekly: 102, monthly: 103 }[period] || 101;
+        let url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&ut=7eea3edcaed734bea9c6b84d2b5e1e4c&klt=${klt}&fqt=1&secid=${secid}&end=20500101&lmt=500`;
+        let res = await fetch(url);
+        let data = await res.json();
+        if (data && data.data && data.data.klines) {
+            return data.data.klines.map(line => { let parts = line.split(','); return { date: parts[0], open: parseFloat(parts[1]), close: parseFloat(parts[2]), high: parseFloat(parts[3]), low: parseFloat(parts[4]), volume: parseFloat(parts[5]) }; });
+        }
+        return [];
+    }
+    async function fetchQuote(code) {
+        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170&ut=7eea3edcaed734bea9c6b84d2b5e1e4c`;
+        let res = await fetch(url);
+        let data = await res.json();
+        if (data && data.data) return { price: data.data.f43 / 100, changePct: data.data.f170 ? data.data.f170 / 100 : 0 };
+        return null;
+    }
+    async function fetchStockName(code) {
+        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f57,f58&ut=7eea3edcaed734bea9c6b84d2b5e1e4c`;
+        let res = await fetch(url);
+        let data = await res.json();
+        if (data && data.data && data.data.f58) return { code: data.data.f57, name: data.data.f58 };
+        return null;
+    }
+    function calcRSI6(closes) {
+        if (closes.length < 7) return null;
+        let period = 6, gains = 0, losses = 0;
+        for (let i = 1; i <= period; i++) { let diff = closes[i] - closes[i - 1]; if (diff >= 0) gains += diff; else losses -= diff; }
+        let avgGain = gains / period, avgLoss = losses / period;
+        for (let i = period + 1; i < closes.length; i++) {
+            let diff = closes[i] - closes[i - 1];
+            if (diff >= 0) { avgGain = (avgGain * (period - 1) + diff) / period; avgLoss = (avgLoss * (period - 1)) / period; }
+            else { avgGain = (avgGain * (period - 1)) / period; avgLoss = (avgLoss * (period - 1) - diff) / period; }
+        }
+        if (avgLoss === 0) return 100;
+        return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(2));
+    }
+    function getRSI6Series(data) {
+        if (!data.length) return [];
+        let closes = data.map(d => d.close);
+        let series = new Array(data.length).fill(null);
+        for (let i = 6; i < data.length; i++) {
+            let subCloses = closes.slice(0, i + 1);
+            series[i] = calcRSI6(subCloses);
+        }
+        return series;
+    }
+    async function getStockDataAtDate(code, targetDate) {
+        try {
+            let kline = await fetchKline(code, "daily");
+            if (!kline.length) return null;
+            let target = kline.find(k => k.date === targetDate);
+            if (!target) return null;
+            let closes = kline.slice(0, kline.indexOf(target) + 1).map(d => d.close);
+            let rsi = calcRSI6(closes);
+            return { price: target.close, rsi: rsi, date: targetDate };
+        } catch (e) { return null; }
+    }
+
+    // ========== 电池条核心逻辑：从中轴向上下填充，每10点一格 ==========
+    // 10个格子，索引 0 顶部(100-91)，索引 9 底部(1-10)
+    // 中轴位于 50，介于索引4(51-60) 和 索引5(41-50)之间
+    // RSI < 50 : 从中间向下填充绿色，填充格数 = floor((50 - RSI) / 10) ，最大5格（索引5,6,7,8,9）
+    // RSI > 50 : 从中间向上填充红色，填充格数 = floor((RSI - 50) / 10) ，最大5格（索引4,3,2,1,0）
+    function getBatterySegments(rsi) {
+        // 10格从下到上: index9=1-10, index8=11-20, ..., index0=91-100
+        // 中轴在50，介于index4(51-60)和index5(41-50)之间
+        const segments = new Array(10).fill('empty');
+        if (rsi === null || isNaN(rsi)) return segments;
+        if (rsi > 50) {
+            // RSI 51-100: 从中间(index4)向上填充红色到RSI所在格
+            let cellIndex = Math.min(4, Math.max(0, Math.floor((100 - rsi) / 10)));
+            for (let i = cellIndex; i <= 4; i++) segments[i] = 'red';
+        } else if (rsi < 50) {
+            // RSI 1-49: 从中间(index5)向下填充绿色到RSI所在格
+            let cellIndex = Math.min(9, Math.max(5, Math.floor((100 - rsi) / 10)));
+            for (let i = 5; i <= cellIndex; i++) segments[i] = 'green';
+        }
+        // RSI = 50: 不填充(恰在中轴)
+        return segments;
+    }
+    function renderBattery(rsi) {
+        const segments = getBatterySegments(rsi);
+        const segHtml = segments.map(cls => `<div class="battery-segment ${cls === 'empty' ? 'empty' : (cls === 'green' ? 'filled-green' : 'filled-red')}"></div>`).join('');
+        return `<div class="rsi-battery"><div class="battery-grid">${segHtml}</div></div>`;
+    }
+    function renderEventCell(val) {
+        if (!val) return `<div class="event-cell"><div class="rsi-battery"><div class="battery-grid">${'<div class="battery-segment empty"></div>'.repeat(10)}</div></div><div class="event-data">—</div></div>`;
+        let rsiVal = val.rsi1;
+        let rsiDisplay = (rsiVal !== null && !isNaN(rsiVal)) ? rsiVal.toFixed(1) : '--';
+        let priceDisplay = val.price !== null ? val.price.toFixed(2) : '—';
+        let badgeHtml = '';
+        if (val.type !== 'passive') {
+            let badgeText = val.type === 'buy' ? '买入' : (val.type === 'sell' ? '卖出' : '标记');
+            let badgeClass = '';
+            if (val.type === 'buy') badgeClass = 'buy-badge';
+            else if (val.type === 'sell') badgeClass = 'sell-badge';
+            else if (val.type === 'mark') {
+                let period = val.period || 'daily';
+                if (period === 'weekly') badgeClass = 'mark-badge-weekly';
+                else if (period === 'monthly') badgeClass = 'mark-badge-monthly';
+                else badgeClass = 'mark-badge-daily';
+            }
+            badgeHtml = `<div class="event-badge ${badgeClass}" style="margin-bottom:2px;">${badgeText}</div>`;
+        } else {
+            badgeHtml = `<div class="passive-icon" style="margin-bottom:2px;"></div>`;
+        }
+        return `<div class="event-cell">
+                    ${renderBattery(rsiVal)}
+                    <div class="event-data">
+                        ${badgeHtml}
+                        <div class="event-price">💰 ${priceDisplay}</div>
+                        <div class="event-rsi">RSI6: ${rsiDisplay}</div>
+                    </div>
+                </div>`;
+    }
+
+    // 表格列联动
+    function highlightColumnByDate(dateStr, shouldHighlight = true) {
+        if (!globalEvents.length) { if (currentHoverColumn !== null) clearColumnHighlight(); return; }
+        let targetIdx = -1;
+        for (let i = 0; i < globalEvents.length; i++) if (globalEvents[i].datetimeStr.split(' ')[0] === dateStr) { targetIdx = i; break; }
+        if (!shouldHighlight || targetIdx === -1) { clearColumnHighlight(); return; }
+        const table = document.getElementById("eventTable");
+        if (!table) return;
+        if (currentHoverColumn !== null) {
+            const prevCells = table.querySelectorAll(`.event-table th:nth-child(${currentHoverColumn+1}), .event-table td:nth-child(${currentHoverColumn+1})`);
+            prevCells.forEach(cell => cell.classList.remove("col-hover"));
+        }
+        currentHoverColumn = targetIdx + 1;
+        const cells = table.querySelectorAll(`.event-table th:nth-child(${currentHoverColumn+1}), .event-table td:nth-child(${currentHoverColumn+1})`);
+        cells.forEach(cell => cell.classList.add("col-hover"));
+        const scrollContainer = document.getElementById("eventScroll");
+        if (scrollContainer) {
+            const targetTh = table.querySelector(`.event-table th:nth-child(${currentHoverColumn+1})`);
+            if (targetTh) targetTh.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        }
+    }
+    function clearColumnHighlight() {
+        if (currentHoverColumn !== null) {
+            const table = document.getElementById("eventTable");
+            if (table) {
+                const cells = table.querySelectorAll(`.event-table th:nth-child(${currentHoverColumn+1}), .event-table td:nth-child(${currentHoverColumn+1})`);
+                cells.forEach(cell => cell.classList.remove("col-hover"));
+            }
+            currentHoverColumn = null;
+        }
+    }
+
+    // ========== K线绘图 ==========
+    function drawKlineWithCrosshair(mouseX = null, mouseY = null) {
+        if (!currentStock || !klineData.length) return;
+        const canvas = document.getElementById("klineCanvas");
+        const container = document.getElementById("chartContainer");
+        if (!canvas || !container) return;
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) { requestAnimationFrame(() => drawKlineWithCrosshair(mouseX, mouseY)); return; }
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + "px";
+        canvas.style.height = rect.height + "px";
+        const ctx = canvas.getContext("2d");
+        const W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+        const data = klineData;
+        const pad = { top: 18 * dpr, bottom: 20 * dpr, left: 58 * dpr, right: 15 * dpr };
+        const rsiHeight = (H - pad.top - pad.bottom) * 0.25;
+        const klineHeight = (H - pad.top - pad.bottom) * 0.75;
+        let maxP = Math.max(...data.map(d => d.high)), minP = Math.min(...data.map(d => d.low));
+        let range = maxP - minP || 1;
+        let yTop = maxP + range * 0.08, yBottom = minP - range * 0.08;
+        let total = data.length, barGap = (W - pad.left - pad.right) / total, barWidth = Math.max(1.2 * dpr, barGap * 0.7);
+        const xPos = i => pad.left + i * barGap + barGap / 2;
+        const yPrice = p => pad.top + (yTop - p) / (yTop - yBottom) * klineHeight;
+        const yRSI = v => pad.top + klineHeight + 6 * dpr + (100 - v) / 100 * rsiHeight;
+
+        ctx.strokeStyle = "#30363d";
+        for (let i = 0; i <= 4; i++) { let y = pad.top + klineHeight * i / 4; ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke(); }
+        for (let i = 0; i < total; i++) {
+            let d = data[i], x = xPos(i), isUp = d.close >= d.open, color = isUp ? "#ef4444" : "#22c55e";
+            ctx.strokeStyle = color; ctx.lineWidth = 0.8 * dpr;
+            ctx.beginPath(); ctx.moveTo(x, yPrice(d.high)); ctx.lineTo(x, yPrice(d.low)); ctx.stroke();
+            let yO = yPrice(d.open), yC = yPrice(d.close);
+            ctx.fillStyle = color; ctx.fillRect(x - barWidth / 2, Math.min(yO, yC), barWidth, Math.abs(yC - yO) || 1 * dpr);
+        }
+
+        ctx.fillStyle = "rgba(22,27,34,0.6)";
+        ctx.fillRect(pad.left, pad.top + klineHeight + 6 * dpr, W - pad.left - pad.right, rsiHeight);
+        let rsiSeries = getRSI6Series(data);
+        ctx.beginPath(); ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 1.5 * dpr;
+        let started = false;
+        for (let i = 0; i < total; i++) {
+            if (rsiSeries[i] !== null) {
+                let x = xPos(i), y = yRSI(rsiSeries[i]);
+                if (!started) { ctx.moveTo(x, y); started = true; }
+                else { ctx.lineTo(x, y); }
+            } else { started = false; ctx.stroke(); ctx.beginPath(); }
+        }
+        ctx.stroke();
+        [30, 50, 70].forEach(v => {
+            let y = yRSI(v);
+            ctx.beginPath(); ctx.setLineDash([3 * dpr, 3 * dpr]); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+            ctx.setLineDash([]); ctx.fillStyle = "#6e7681"; ctx.font = `${8 * dpr}px monospace`; ctx.fillText(v, pad.left - 5 * dpr, y + 3 * dpr);
+        });
+
+        let stockMap = stockEventValues.get(currentStock.code);
+        if (stockMap && globalEvents.length) {
+            for (let ev of globalEvents) {
+                let detail = stockMap.get(ev.id);
+                if (detail && detail.type !== 'passive' && detail.period === currentPeriod && detail.dateIndex !== undefined && detail.dateIndex >= 0 && detail.dateIndex < total) {
+                    let x = xPos(detail.dateIndex);
+                    let yCandleLow = yPrice(data[detail.dateIndex].low);
+                    let yCandleHigh = yPrice(data[detail.dateIndex].high);
+                    let offset = 16 * dpr;
+                    if (detail.type === 'buy') {
+                        ctx.fillStyle = "#ef4444";
+                        ctx.beginPath(); let arrowY = yCandleLow + offset; ctx.moveTo(x - 5 * dpr, arrowY); ctx.lineTo(x, arrowY - 8 * dpr); ctx.lineTo(x + 5 * dpr, arrowY); ctx.fill();
+                    } else if (detail.type === 'sell') {
+                        ctx.fillStyle = "#22c55e";
+                        ctx.beginPath(); let arrowY = yCandleHigh - offset; ctx.moveTo(x - 5 * dpr, arrowY); ctx.lineTo(x, arrowY + 8 * dpr); ctx.lineTo(x + 5 * dpr, arrowY); ctx.fill();
+                    } else if (detail.type === 'mark') {
+                        let markColor = currentPeriod === 'weekly' ? "#87ceeb" : (currentPeriod === 'monthly' ? "#c084fc" : "#ffffff");
+                        ctx.fillStyle = markColor;
+                        ctx.beginPath(); let arrowY = yCandleLow + offset; ctx.moveTo(x - 5 * dpr, arrowY); ctx.lineTo(x, arrowY - 8 * dpr); ctx.lineTo(x + 5 * dpr, arrowY); ctx.fill();
+                    }
+                    let yRsiPoint = yRSI(detail.rsi1 || 50);
+                    ctx.fillStyle = (detail.rsi1 >= 50) ? "#ef4444" : "#22c55e";
+                    ctx.beginPath(); ctx.arc(x, yRsiPoint, 4 * dpr, 0, 2 * Math.PI); ctx.fill();
+                }
+            }
+        }
+
+        if (mouseX !== null && mouseY !== null && mouseX >= pad.left && mouseX <= W - pad.right && mouseY >= pad.top && mouseY <= H - pad.bottom) {
+            let nearestIdx = -1, minDist = Infinity;
+            for (let i = 0; i < total; i++) {
+                let dist = Math.abs(xPos(i) - mouseX);
+                if (dist < minDist) { minDist = dist; nearestIdx = i; }
+            }
+            if (nearestIdx !== -1 && minDist < barGap * 0.8) {
+                let x = xPos(nearestIdx);
+                let d = data[nearestIdx];
+                ctx.beginPath(); ctx.setLineDash([5 * dpr, 4 * dpr]); ctx.strokeStyle = "#58a6ff"; ctx.lineWidth = 1 * dpr;
+                ctx.moveTo(x, pad.top); ctx.lineTo(x, H - pad.bottom); ctx.stroke();
+                let priceY = yPrice(d.close);
+                ctx.beginPath(); ctx.moveTo(pad.left, priceY); ctx.lineTo(W - pad.right, priceY); ctx.stroke();
+                let rsiVal = rsiSeries[nearestIdx];
+                if (rsiVal !== null) { let rsiY = yRSI(rsiVal); ctx.beginPath(); ctx.moveTo(pad.left, rsiY); ctx.lineTo(W - pad.right, rsiY); ctx.stroke(); }
+                ctx.setLineDash([]);
+                let hasEvent = globalEvents.some(ev => ev.datetimeStr.split(' ')[0] === d.date);
+                if (hasEvent) highlightColumnByDate(d.date, true);
+                else clearColumnHighlight();
+                let tip = document.getElementById("chartTooltip");
+                if (!tip) { tip = document.createElement("div"); tip.id = "chartTooltip"; tip.style.cssText = "position:absolute;background:#21262d;border:1px solid #30363d;border-radius:6px;padding:8px 12px;font-size:13px;font-family:monospace;z-index:20;pointer-events:none;"; container.appendChild(tip); }
+                let rsiShow = rsiVal !== null ? rsiVal.toFixed(1) : "--";
+                tip.innerHTML = `<div style="font-weight:600">${d.date}</div>📊 收:${d.close.toFixed(2)} 高:${d.high.toFixed(2)} 低:${d.low.toFixed(2)}<br>📈 RSI6: ${rsiShow}`;
+                let cx = mouseX / dpr, cy = mouseY / dpr;
+                const tooltipWidth = 220;
+                const tooltipHeight = 70;
+                // 智能定位：优先显示在鼠标右上方，避免遮挡鼠标中心
+                let left, top;
+                // 水平方向：右边空间够 → 放右边；否则放左边
+                if (cx + 20 + tooltipWidth <= rect.width - 5) {
+                    left = cx + 20;
+                } else {
+                    left = cx - tooltipWidth - 20;
+                }
+                // 垂直方向：上方空间够 → 放上方(tooltip底部在鼠标上方)；否则放下方
+                if (cy - tooltipHeight - 12 >= 5) {
+                    top = cy - tooltipHeight - 12;
+                } else {
+                    top = cy + 18;
+                }
+                // 最终边界约束
+                if (left < 5) left = 5;
+                if (left + tooltipWidth > rect.width - 5) left = rect.width - tooltipWidth - 5;
+                if (top < 5) top = 5;
+                if (top + tooltipHeight > rect.height - 5) top = rect.height - tooltipHeight - 5;
+                tip.style.left = left + "px";
+                tip.style.top = top + "px";
+                tip.style.display = "block";
+            } else { clearColumnHighlight(); let tip = document.getElementById("chartTooltip"); if (tip) tip.style.display = "none"; }
+        } else { clearColumnHighlight(); let tip = document.getElementById("chartTooltip"); if (tip) tip.style.display = "none"; }
+    }
+
+    function bindChartMouseMove() {
+        const canvas = document.getElementById("klineCanvas");
+        canvas.onmousemove = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            drawKlineWithCrosshair((e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
+        };
+        canvas.onmouseleave = () => { drawKlineWithCrosshair(null, null); clearColumnHighlight(); let tip = document.getElementById("chartTooltip"); if (tip) tip.style.display = "none"; };
+    }
+    function bindChartClick() {
+        const canvas = document.getElementById("klineCanvas");
+        canvas.onclick = async (e) => {
+            if (!currentStock || !klineData.length) return;
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const mx = (e.clientX - rect.left) * dpr;
+            const padLeft = 58 * dpr, total = klineData.length;
+            const barGap = (canvas.width - padLeft - 15 * dpr) / total;
+            let idx = -1;
+            for (let i = 0; i < total; i++) if (Math.abs(padLeft + i * barGap + barGap / 2 - mx) < barGap / 1.5) { idx = i; break; }
+            if (idx >= 0) {
+                pendingKlineIdx = idx;
+                let d = klineData[idx];
+                pendingKlineDate = d.date;
+                pendingClosePrice = d.close;
+                pendingRsiVal = getRSI6Series(klineData)[idx];
+                document.getElementById("previewRsi").innerText = pendingRsiVal !== null ? pendingRsiVal.toFixed(1) : "--";
+                document.getElementById("eventTimeLocal").value = d.date + "T12:00:00";
+                document.getElementById("eventPrice").value = d.close.toFixed(2);
+                document.getElementById("eventModal").classList.add("show");
+            }
+        };
+    }
+
+    async function addEventFromModal() {
+        let type = document.getElementById("eventTypeSelect").value;
+        let timeStr = document.getElementById("eventTimeLocal").value;
+        let price = parseFloat(document.getElementById("eventPrice").value);
+        if (!timeStr || isNaN(price)) { showToast("请填写完整信息", "error"); return; }
+        let timestamp = new Date(timeStr).getTime();
+        let existing = globalEvents.find(ev => ev.timestamp === timestamp);
+        let eventId;
+        if (existing) eventId = existing.id;
+        else {
+            eventId = Date.now() + "_" + Math.random();
+            globalEvents.push({ id: eventId, timestamp, datetimeStr: timeStr.replace('T', ' ') });
+            sortGlobalEvents();
+        }
+        if (!stockEventValues.has(currentStock.code)) stockEventValues.set(currentStock.code, new Map());
+        let stockMap = stockEventValues.get(currentStock.code);
+        stockMap.set(eventId, { type, price, rsi1: pendingRsiVal, dateIndex: pendingKlineIdx, date: pendingKlineDate, period: currentPeriod });
+        let targetDate = pendingKlineDate;
+        for (let stock of watchlist) {
+            if (stock.code === currentStock.code) continue;
+            if (!stockEventValues.has(stock.code)) stockEventValues.set(stock.code, new Map());
+            let otherMap = stockEventValues.get(stock.code);
+            if (otherMap.has(eventId)) continue;
+            let data = await getStockDataAtDate(stock.code, targetDate);
+            if (data) otherMap.set(eventId, { type: 'passive', price: data.price, rsi1: data.rsi, dateIndex: -1, date: targetDate });
+            else otherMap.set(eventId, { type: 'passive', price: null, rsi1: null, date: targetDate });
+        }
+        saveData();
+        renderEventTable();
+        drawKlineWithCrosshair(null, null);
+        document.getElementById("eventModal").classList.remove("show");
+        showToast(`✅ 事件已添加: ${type === 'buy' ? '买入' : type === 'sell' ? '卖出' : '标记'} (${currentPeriod === 'daily' ? '日线' : currentPeriod === 'weekly' ? '周线' : '月线'}) 已同步其他股票`, "success");
+    }
+
+    function renderEventTable() {
+        const tbody = document.getElementById("eventTableBody");
+        const thead = document.getElementById("eventTableHead");
+        if (!globalEvents.length) {
+            thead.innerHTML = `<tr><th style="min-width:110px">股票 / 时间轴</th><th class="live-col">⚡ 实时 <button class="live-refresh-btn" title="刷新实时数据">🔄</button></th></tr>`;
+            let emptyBody = "";
+            for (let stock of watchlist) {
+                let data = liveDataCache.get(stock.code);
+                let priceStr = data?.price ? data.price.toFixed(2) : "--";
+                let rsiStr = (data?.rsi !== null && data?.rsi !== undefined && !isNaN(data.rsi)) ? data.rsi.toFixed(1) : "--";
+                let batteryHtml2 = renderBattery(data?.rsi);
+                emptyBody += `<tr><td style="font-weight:600;">${stock.code}<br><span style="font-size:10px">${stock.name}</span></td><td class="live-col" data-code="${stock.code}"><div style="display:flex;align-items:center;gap:6px;">${batteryHtml2}<div><div style="font-weight:600;font-family:monospace;font-size:14px;">💰${priceStr}</div><div style="font-size:12px;color:#f5b042;">RSI6: ${rsiStr}</div></div></div></td></tr>`;
+            }
+            tbody.innerHTML = emptyBody || `<tr><td colspan="2" style="text-align:center;color:#6e7681">暂无事件，点击K线添加买/卖/标记</td></tr>`;
+            if (sortableInstance) sortableInstance.destroy();
+            return;
+        }
+        let sortedEvents = [...globalEvents].sort((a, b) => a.timestamp - b.timestamp);
+        let headHtml = `<tr><th style="min-width:110px">股票 / 时间轴</th>`;
+        for (let ev of sortedEvents) headHtml += `<th style="min-width:130px">${ev.datetimeStr}<button class="event-delete-btn" data-id="${ev.id}">🗑</button></th>`;
+        headHtml += `<th class="live-col">⚡ 实时 <button class="live-refresh-btn" title="刷新实时数据">🔄</button></th></tr>`;
+        thead.innerHTML = headHtml;
+        let tbodyHtml = "";
+        for (let stock of watchlist) {
+            let stockMap = stockEventValues.get(stock.code) || new Map();
+            let row = `<tr><td style="font-weight:600;background:var(--bg-secondary);position:sticky;left:0;">${stock.code}<br><span style="font-size:10px">${stock.name}</span></td>`;
+            for (let ev of sortedEvents) row += `<td style="padding:4px;">${renderEventCell(stockMap.get(ev.id))}</td>`;
+            row += `<td class="live-col" data-code="${stock.code}"></td></tr>`;
+            tbodyHtml += row;
+        }
+        tbody.innerHTML = tbodyHtml;
+        document.querySelectorAll(".event-delete-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                let id = btn.getAttribute("data-id");
+                globalEvents = globalEvents.filter(ev => ev.id !== id);
+                for (let [code, mp] of stockEventValues.entries()) mp.delete(id);
+                saveData();
+                renderEventTable();
+                if (currentStock) drawKlineWithCrosshair(null, null);
+            });
+        });
+        if (sortableInstance) sortableInstance.destroy();
+        if (tbody) {
+            sortableInstance = new Sortable(tbody, {
+                animation: 200, handle: 'td:first-child',
+                onEnd: function(evt) {
+                    const rows = tbody.querySelectorAll('tr');
+                    let newOrderCodes = [];
+                    for (let row of rows) {
+                        let codeText = row.querySelector('td:first-child')?.innerText.split('\n')[0].trim();
+                        if (codeText) newOrderCodes.push(codeText);
+                    }
+                    if (newOrderCodes.length === watchlist.length) {
+                        let newWatchlist = [];
+                        for (let code of newOrderCodes) {
+                            let found = watchlist.find(s => s.code === code);
+                            if (found) newWatchlist.push(found);
+                        }
+                        if (newWatchlist.length === watchlist.length) {
+                            watchlist = newWatchlist;
+                            saveData();
+                            renderWatchlist();
+                            renderEventTable();
+                            if (currentStock) drawKlineWithCrosshair(null, null);
+                            showToast("股票顺序已更新", "info");
+                        }
+                    }
+                }
+            });
+        }
+        bindColumnHover();
+        // 渲染完成后更新实时列DOM
+        updateLiveColumnDOM();
+    }
+
+    function bindColumnHover() {
+        const table = document.getElementById("eventTable");
+        if (!table) return;
+        const ths = table.querySelectorAll("thead th");
+        if (ths.length < 2) return;
+        const mouseEnterHandler = (colIdx, thElement) => {
+            if (currentHoverColumn !== null) {
+                const prevCells = table.querySelectorAll(`.event-table th:nth-child(${currentHoverColumn+1}), .event-table td:nth-child(${currentHoverColumn+1})`);
+                prevCells.forEach(cell => cell.classList.remove("col-hover"));
+            }
+            currentHoverColumn = colIdx;
+            const cells = table.querySelectorAll(`.event-table th:nth-child(${colIdx+1}), .event-table td:nth-child(${colIdx+1})`);
+            cells.forEach(cell => cell.classList.add("col-hover"));
+            const scrollContainer = document.getElementById("eventScroll");
+            if (scrollContainer && thElement) thElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        };
+        const mouseLeaveHandler = () => {
+            if (currentHoverColumn !== null) {
+                const cells = table.querySelectorAll(`.event-table th:nth-child(${currentHoverColumn+1}), .event-table td:nth-child(${currentHoverColumn+1})`);
+                cells.forEach(cell => cell.classList.remove("col-hover"));
+                currentHoverColumn = null;
+            }
+        };
+        for (let i = 1; i < ths.length; i++) {
+            const th = ths[i];
+            th.addEventListener("mouseenter", (function(idx) { return function() { mouseEnterHandler(idx, th); }; })(i));
+            th.addEventListener("mouseleave", mouseLeaveHandler);
+        }
+        window._columnHoverClean = () => {
+            for (let i = 1; i < ths.length; i++) {
+                ths[i].removeEventListener("mouseenter", mouseEnterHandler);
+                ths[i].removeEventListener("mouseleave", mouseLeaveHandler);
+            }
+        };
+    }
+
+    function clearAllEvents() {
+        if (confirm("⚠️ 清空所有事件列？不可撤销")) {
+            globalEvents = [];
+            stockEventValues.clear();
+            saveData();
+            renderEventTable();
+            if (currentStock) drawKlineWithCrosshair(null, null);
+            showToast("已清空所有事件", "info");
+        }
+    }
+
+    // ========== 提醒功能 ==========
+    let alertCheckCooldown = new Map(); // "code_type" -> lastAlertTime
+    const ALERT_COOLDOWN = 3600000; // 同一类型提醒1小时内不重复
+
+    function openAlertModal(code) {
+        let stock = watchlist.find(s => s.code === code);
+        if (!stock) return;
+        document.getElementById("alertStockLabel").innerText = stock.code + " " + stock.name;
+        document.getElementById("alertStockLabel").dataset.code = code;
+        let alertData = stockAlerts.get(code) || {};
+        document.getElementById("alertPriceAbove").value = alertData.priceAbove || '';
+        document.getElementById("alertPriceBelow").value = alertData.priceBelow || '';
+        document.getElementById("alertRsiDaily").value = alertData.rsiDaily || '';
+        document.getElementById("alertRsiWeekly").value = alertData.rsiWeekly || '';
+        document.getElementById("alertRsiMonthly").value = alertData.rsiMonthly || '';
+        document.getElementById("alertModal").classList.add("show");
+    }
+
+    function saveAlertSettings() {
+        let code = document.getElementById("alertStockLabel").dataset.code;
+        if (!code) return;
+        let priceAbove = parseFloat(document.getElementById("alertPriceAbove").value);
+        let priceBelow = parseFloat(document.getElementById("alertPriceBelow").value);
+        let rsiDaily = parseFloat(document.getElementById("alertRsiDaily").value);
+        let rsiWeekly = parseFloat(document.getElementById("alertRsiWeekly").value);
+        let rsiMonthly = parseFloat(document.getElementById("alertRsiMonthly").value);
+
+        // 检查是否至少设置了一项
+        let hasAny = !isNaN(priceAbove) || !isNaN(priceBelow) || !isNaN(rsiDaily) || !isNaN(rsiWeekly) || !isNaN(rsiMonthly);
+        if (!hasAny) {
+            stockAlerts.delete(code);
+            showToast("已清除该股票的所有提醒", "info");
+        } else {
+            stockAlerts.set(code, {
+                priceAbove: isNaN(priceAbove) ? null : priceAbove,
+                priceBelow: isNaN(priceBelow) ? null : priceBelow,
+                rsiDaily: isNaN(rsiDaily) ? null : rsiDaily,
+                rsiWeekly: isNaN(rsiWeekly) ? null : rsiWeekly,
+                rsiMonthly: isNaN(rsiMonthly) ? null : rsiMonthly
+            });
+            showToast("✅ 提醒设置已保存", "success");
+        }
+        saveData();
+        renderWatchlist();
+        document.getElementById("alertModal").classList.remove("show");
+    }
+
+    function clearAlertSettings() {
+        let code = document.getElementById("alertStockLabel").dataset.code;
+        if (!code) return;
+        stockAlerts.delete(code);
+        saveData();
+        renderWatchlist();
+        document.getElementById("alertModal").classList.remove("show");
+        showToast("提醒已清除", "info");
+    }
+
+    function showAlertNotification(title, body) {
+        // 1. 浏览器原生通知
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+                new Notification(title, { body, icon: 'app.png', tag: 'stock-alert', requireInteraction: true });
+            } catch(e) { /* fallback */ }
+        }
+
+        // 2. 页面内弹窗
+        let notif = document.getElementById("alertNotification");
+        document.getElementById("alertNotifyTitle").innerText = title;
+        document.getElementById("alertNotifyBody").innerText = body;
+        notif.classList.add("show");
+
+        // 自动关闭
+        clearTimeout(notif._timeout);
+        notif._timeout = setTimeout(() => notif.classList.remove("show"), 10000);
+
+        // 3. 同时播放提示音（可选）
+        try {
+            let ctx = new (window.AudioContext || window.webkitAudioContext)();
+            let osc = ctx.createOscillator();
+            let gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = 880; osc.type = 'sine';
+            gain.gain.value = 0.15;
+            osc.start(); osc.stop(ctx.currentTime + 0.15);
+            setTimeout(() => { osc = ctx.createOscillator(); osc.connect(gain); osc.frequency.value = 1100; osc.start(); osc.stop(ctx.currentTime + 0.2); }, 200);
+        } catch(e) {}
+    }
+
+    async function checkAlertsForStock(code) {
+        let alertSettings = stockAlerts.get(code);
+        if (!alertSettings) return;
+
+        let data = liveDataCache.get(code);
+        if (!data || data.price === null || data.price === undefined) return;
+
+        let stock = watchlist.find(s => s.code === code);
+        let stockName = stock ? stock.name : code;
+        let currentPrice = data.price;
+        let currentRsiDaily = data.rsi;
+
+        let now = Date.now();
+
+        // --- 价格提醒 ---
+        if (alertSettings.priceAbove !== null && currentPrice >= alertSettings.priceAbove) {
+            let key = code + '_priceAbove';
+            let last = alertCheckCooldown.get(key) || 0;
+            if (now - last > ALERT_COOLDOWN) {
+                alertCheckCooldown.set(key, now);
+                showAlertNotification(
+                    `📈 ${stockName}(${code}) 价格上涨提醒`,
+                    `当前价格：${currentPrice.toFixed(2)} 元\n已触发目标价：${alertSettings.priceAbove.toFixed(2)} 元\n\n当前日RSI(6)：${currentRsiDaily !== null && !isNaN(currentRsiDaily) ? currentRsiDaily.toFixed(1) : '--'}`
+                );
+            }
+        }
+        if (alertSettings.priceBelow !== null && currentPrice <= alertSettings.priceBelow) {
+            let key = code + '_priceBelow';
+            let last = alertCheckCooldown.get(key) || 0;
+            if (now - last > ALERT_COOLDOWN) {
+                alertCheckCooldown.set(key, now);
+                showAlertNotification(
+                    `📉 ${stockName}(${code}) 价格下跌提醒`,
+                    `当前价格：${currentPrice.toFixed(2)} 元\n已触发目标价：${alertSettings.priceBelow.toFixed(2)} 元\n\n当前日RSI(6)：${currentRsiDaily !== null && !isNaN(currentRsiDaily) ? currentRsiDaily.toFixed(1) : '--'}`
+                );
+            }
+        }
+
+        // --- RSI提醒（需要获取日/周/月RSI） ---
+        let rsiNeedCheck = [];
+        if (alertSettings.rsiDaily !== null) rsiNeedCheck.push({ type: 'daily', target: alertSettings.rsiDaily, label: '日' });
+        if (alertSettings.rsiWeekly !== null) rsiNeedCheck.push({ type: 'weekly', target: alertSettings.rsiWeekly, label: '周' });
+        if (alertSettings.rsiMonthly !== null) rsiNeedCheck.push({ type: 'monthly', target: alertSettings.rsiMonthly, label: '月' });
+
+        if (rsiNeedCheck.length > 0) {
+            // 获取所有需要的RSI数据
+            let rsiData = {};
+            // 日RSI直接从缓存取
+            if (currentRsiDaily !== null && !isNaN(currentRsiDaily)) rsiData.daily = currentRsiDaily;
+
+            // 周和月RSI需要单独获取
+            for (let check of rsiNeedCheck) {
+                if (check.type === 'daily') continue; // 已处理
+                // 检查缓存
+                let cacheKey = code + '_rsi_' + check.type;
+                let cached = liveDataCache.get(cacheKey);
+                if (cached && (now - cached.time < 600000)) {
+                    rsiData[check.type] = cached.value;
+                }
+            }
+
+            // 对每个需要检查的RSI做比对
+            for (let check of rsiNeedCheck) {
+                let rsiVal = rsiData[check.type];
+                if (rsiVal === undefined || rsiVal === null || isNaN(rsiVal)) continue;
+
+                let target = check.target;
+                // 判断是否触发：RSI到达或超过目标值
+                // 如果目标是50以上（卖出信号），RSI >= 目标触发
+                // 如果目标是50以下（买入信号），RSI <= 目标触发
+                let triggered = false;
+                if (target >= 50 && rsiVal >= target) triggered = true;
+                else if (target < 50 && rsiVal <= target) triggered = true;
+
+                if (triggered) {
+                    let key = code + '_rsi' + check.type + '_' + target;
+                    let last = alertCheckCooldown.get(key) || 0;
+                    if (now - last > ALERT_COOLDOWN) {
+                        alertCheckCooldown.set(key, now);
+                        let advice = target >= 50
+                            ? `RSI已进入高位区，建议关注卖出时机。`
+                            : `RSI已进入低位区，建议关注买入时机。`;
+                        // 构建RSI信息
+                        let rsiInfo = `目标${check.label}RSI(6)：${target}，当前${check.label}RSI(6)：${rsiVal.toFixed(1)}`;
+                        if (currentRsiDaily !== null && !isNaN(currentRsiDaily)) rsiInfo += `\n当前日RSI(6)：${currentRsiDaily.toFixed(1)}`;
+                        let weekRsi = rsiData.weekly;
+                        if (weekRsi !== undefined && weekRsi !== null && !isNaN(weekRsi)) rsiInfo += `\n当前周RSI(6)：${weekRsi.toFixed(1)}`;
+                        let monthRsi = rsiData.monthly;
+                        if (monthRsi !== undefined && monthRsi !== null && !isNaN(monthRsi)) rsiInfo += `\n当前月RSI(6)：${monthRsi.toFixed(1)}`;
+
+                        showAlertNotification(
+                            `📊 ${stockName}(${code}) ${check.label}RSI提醒`,
+                            `${rsiInfo}\n\n💡 ${advice}`
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    async function fetchRsiForAlertCheck(code) {
+        // 获取周RSI和月RSI用于提醒检查
+        if (!stockAlerts.has(code)) return;
+        let settings = stockAlerts.get(code);
+        let needWeekly = settings.rsiWeekly !== null;
+        let needMonthly = settings.rsiMonthly !== null;
+        if (!needWeekly && !needMonthly) return;
+
+        let now = Date.now();
+        let promises = [];
+        if (needWeekly) {
+            let cacheKey = code + '_rsi_weekly';
+            let cached = liveDataCache.get(cacheKey);
+            if (!cached || (now - cached.time > 600000)) {
+                promises.push((async () => {
+                    try {
+                        let kline = await fetchKline(code, 'weekly');
+                        if (kline.length) {
+                            let rsiSeries = getRSI6Series(kline);
+                            let rsi = rsiSeries[rsiSeries.length - 1];
+                            liveDataCache.set(cacheKey, { value: rsi, time: now });
+                        }
+                    } catch(e) {}
+                })());
+            }
+        }
+        if (needMonthly) {
+            let cacheKey = code + '_rsi_monthly';
+            let cached = liveDataCache.get(cacheKey);
+            if (!cached || (now - cached.time > 600000)) {
+                promises.push((async () => {
+                    try {
+                        let kline = await fetchKline(code, 'monthly');
+                        if (kline.length) {
+                            let rsiSeries = getRSI6Series(kline);
+                            let rsi = rsiSeries[rsiSeries.length - 1];
+                            liveDataCache.set(cacheKey, { value: rsi, time: now });
+                        }
+                    } catch(e) {}
+                })());
+            }
+        }
+        await Promise.allSettled(promises);
+    }
+
+    async function checkAllAlerts() {
+        if (!watchlist.length) return;
+        // 先获取需要的周/月RSI数据（并发限制3个，避免过多请求）
+        const CONCURRENCY = 3;
+        const stocks = [...watchlist];
+        for (let i = 0; i < stocks.length; i += CONCURRENCY) {
+            const batch = stocks.slice(i, i + CONCURRENCY);
+            await Promise.allSettled(batch.map(s => fetchRsiForAlertCheck(s.code)));
+        }
+        // 检查每个股票的提醒
+        for (let stock of watchlist) {
+            await checkAlertsForStock(stock.code);
+        }
+    }
+
+    // ========== 实时数据列 ==========
+    async function updateLiveDataForStock(code) {
+        try {
+            let quote = await fetchQuote(code);
+            let price = null, changePct = null;
+            if (quote) { price = quote.price; changePct = quote.changePct; }
+            let rsi = null;
+            // 优先使用当前加载的K线数据计算RSI
+            if (currentStock && currentStock.code === code && klineData.length) {
+                let rsiSeries = getRSI6Series(klineData);
+                rsi = rsiSeries[rsiSeries.length - 1];
+            } else {
+                let cached = liveDataCache.get(code);
+                // 10分钟内的RSI缓存仍有效
+                if (cached && cached.rsi !== null && cached.rsi !== undefined && cached.rsiUpdateTime && (Date.now() - cached.rsiUpdateTime < 600000)) {
+                    rsi = cached.rsi;
+                } else {
+                    // 非当前股票：获取日K线计算RSI（仅在缓存过期时）
+                    try {
+                        let kline = await fetchKline(code, 'daily');
+                        if (kline.length) {
+                            let rsiSeries = getRSI6Series(kline);
+                            rsi = rsiSeries[rsiSeries.length - 1];
+                        }
+                    } catch(e2) {}
+                }
+            }
+            liveDataCache.set(code, { price, rsi, changePct, updateTime: Date.now(), rsiUpdateTime: rsi !== null ? Date.now() : (liveDataCache.get(code)?.rsiUpdateTime || 0) });
+        } catch(e) { /* 静默失败 */ }
+    }
+
+    async function updateAllLiveData() {
+        if (!watchlist.length) return;
+        let promises = watchlist.map(s => updateLiveDataForStock(s.code));
+        await Promise.allSettled(promises);
+        updateLiveColumnDOM();
+        // 检查提醒条件
+        checkAllAlerts();
+    }
+
+    function updateLiveColumnDOM() {
+        if (!watchlist.length) return;
+        let tbody = document.getElementById("eventTableBody");
+        if (!tbody) return;
+        let rows = tbody.querySelectorAll("tr");
+        rows.forEach(row => {
+            let liveCell = row.querySelector(".live-col");
+            if (!liveCell) return;
+            let code = liveCell.dataset.code;
+            if (!code) return;
+            let data = liveDataCache.get(code);
+            let priceStr = (data && data.price !== null && data.price !== undefined) ? data.price.toFixed(2) : "--";
+            let rsiStr = (data && data.rsi !== null && data.rsi !== undefined && !isNaN(data.rsi)) ? data.rsi.toFixed(1) : "--";
+            let changeStr = "";
+            if (data && data.changePct !== null && data.changePct !== undefined) {
+                let sign = data.changePct >= 0 ? "+" : "";
+                let color = data.changePct >= 0 ? "#ef4444" : "#22c55e";
+                changeStr = `<span style="color:${color};font-size:11px;">${sign}${data.changePct.toFixed(2)}%</span>`;
+            }
+            let batteryHtml = renderBattery(data ? data.rsi : null);
+            liveCell.innerHTML = `<div style="display:flex;align-items:center;gap:6px;">${batteryHtml}<div><div style="font-weight:600;font-family:monospace;font-size:14px;color:#e6edf3;">💰${priceStr}</div><div style="font-size:12px;color:#f5b042;">RSI6: ${rsiStr}</div>${changeStr}</div></div>`;
+        });
+    }
+
+    function startLiveDataRefresh() {
+        stopLiveDataRefresh();
+        updateAllLiveData();
+        // 每分钟检查是否到目标时间点（工作日 10:32, 14:32, 15:57）
+        liveDataCheckInterval = setInterval(checkScheduledRefresh, 60000);
+    }
+    function stopLiveDataRefresh() {
+        if (liveDataCheckInterval) { clearInterval(liveDataCheckInterval); liveDataCheckInterval = null; }
+    }
+    function checkScheduledRefresh() {
+        const now = new Date();
+        const day = now.getDay();
+        if (day < 1 || day > 5) return; // 仅工作日(周一到周五)
+        const h = now.getHours(), m = now.getMinutes();
+        const timeKey = h * 100 + m;
+        const targets = [1032, 1432, 1557];
+        if (targets.includes(timeKey)) {
+            const dateKey = now.toDateString();
+            if (lastScheduledRefresh !== dateKey + '_' + timeKey) {
+                lastScheduledRefresh = dateKey + '_' + timeKey;
+                updateAllLiveData();
+            }
+        }
+    }
+
+    async function loadStockData() {
+        if (!currentStock) return;
+        document.getElementById("chartLoading").style.display = "flex";
+        try {
+            let kline = await fetchKline(currentStock.code, currentPeriod);
+            if (kline.length) {
+                klineData = kline;
+                let quote = await fetchQuote(currentStock.code);
+                if (quote) {
+                    document.getElementById("toolbarPrice").innerHTML = quote.price.toFixed(2);
+                    let change = quote.changePct;
+                    document.getElementById("toolbarChange").innerHTML = (change >= 0 ? "+" : "") + change.toFixed(2) + "%";
+                    document.getElementById("toolbarChange").style.color = change >= 0 ? "#ef4444" : "#22c55e";
+                }
+                let rsiSeries = getRSI6Series(kline);
+                let lastRsi = rsiSeries[rsiSeries.length - 1];
+                document.getElementById("rsi1Val").innerText = lastRsi !== null ? lastRsi.toFixed(1) : "--";
+                document.getElementById("toolbarName").innerText = currentStock.name;
+                document.getElementById("toolbarCode").innerText = currentStock.code;
+                let stockMap = stockEventValues.get(currentStock.code);
+                if (stockMap) {
+                    let dateToIdx = new Map();
+                    klineData.forEach((d, idx) => dateToIdx.set(d.date, idx));
+                    for (let [eid, detail] of stockMap.entries()) {
+                        if (detail.date && dateToIdx.has(detail.date) && detail.type !== 'passive' && detail.period === currentPeriod) detail.dateIndex = dateToIdx.get(detail.date);
+                        else if (detail.type !== 'passive') detail.dateIndex = -1;
+                    }
+                    stockEventValues.set(currentStock.code, stockMap);
+                    saveData();
+                }
+                drawKlineWithCrosshair(null, null);
+                bindChartMouseMove();
+                bindChartClick();
+                // 更新当前股票的实时数据缓存（利用刚加载的K线RSI）
+                updateLiveDataForStock(currentStock.code).then(() => updateLiveColumnDOM());
+                renderEventTable();
+            } else showToast("数据加载失败", "error");
+        } catch (err) { showToast("网络错误", "error"); }
+        document.getElementById("chartLoading").style.display = "none";
+    }
+
+    async function selectStock(code, name) {
+        currentStock = { code, name };
+        renderWatchlist();
+        document.getElementById("welcomeScreen").style.display = "none";
+        document.getElementById("stockView").style.display = "flex";
+        await loadStockData();
+    }
+
+    function renderWatchlist() {
+        let container = document.getElementById("stockList");
+        if (!watchlist.length) { container.innerHTML = "<div style='padding:24px;text-align:center;font-size:15px;color:#6e7681'>暂无自选股</div>"; document.getElementById("watchlistCount").innerText = "0"; return; }
+        let html = "";
+        watchlist.forEach(s => {
+            let active = (currentStock && currentStock.code === s.code) ? "active" : "";
+            let hasAlert = stockAlerts.has(s.code) ? 'has-alert' : '';
+            let alertDot = stockAlerts.has(s.code) ? '<span class="stock-alert-dot"></span>' : '';
+            html += `<div class="stock-item ${active}" data-code="${s.code}" data-name="${s.name}">
+                        <div class="stock-info"><div class="stock-code">${s.code}</div><div class="stock-name">${s.name}</div></div>
+                        <button class="stock-alert-btn ${hasAlert}" data-code="${s.code}" title="设置提醒" style="position:relative;">🔔${alertDot}</button>
+                        <button class="btn btn-sm stock-del" data-code="${s.code}">✕</button>
+                     </div>`;
+        });
+        container.innerHTML = html;
+        document.getElementById("watchlistCount").innerText = watchlist.length;
+        document.querySelectorAll(".stock-item").forEach(el => {
+            el.addEventListener("click", (e) => { if (!e.target.closest(".stock-del") && !e.target.closest(".stock-alert-btn")) selectStock(el.dataset.code, el.dataset.name); });
+        });
+        document.querySelectorAll(".stock-alert-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => { e.stopPropagation(); openAlertModal(btn.dataset.code); });
+        });
+        document.querySelectorAll(".stock-del").forEach(btn => {
+            btn.addEventListener("click", (e) => { e.stopPropagation(); let code = btn.dataset.code; watchlist = watchlist.filter(s => s.code !== code); stockAlerts.delete(code); saveData(); if (currentStock?.code === code && watchlist.length) selectStock(watchlist[0].code, watchlist[0].name); else if (!watchlist.length) { currentStock = null; document.getElementById("welcomeScreen").style.display = "flex"; document.getElementById("stockView").style.display = "none"; } renderWatchlist(); renderEventTable(); if (currentStock) drawKlineWithCrosshair(null, null); });
+        });
+    }
+
+    async function addStock() {
+        let keyword = document.getElementById("stockInput").value.trim();
+        if (!keyword) { showToast("请输入股票代码或名称", "error"); return; }
+        if (/^\d{6}$/.test(keyword)) {
+            let info = await fetchStockName(keyword);
+            let name = info?.name || keyword;
+            addToWatchlist(keyword, name);
+            document.getElementById("stockInput").value = "";
+            document.getElementById("searchDropdown").classList.remove("show");
+            return;
+        }
+        let results = await searchStocks(keyword);
+        if (results.length === 0) { showToast("未找到相关股票，请输入准确代码", "error"); return; }
+        if (results.length === 1) { addToWatchlist(results[0].code, results[0].name); document.getElementById("stockInput").value = ""; document.getElementById("searchDropdown").classList.remove("show"); }
+        else renderSearchDropdown(results);
+    }
+
+    function init() {
+        loadData();
+        renderWatchlist();
+        renderEventTable();
+        if (watchlist.length) selectStock(watchlist[0].code, watchlist[0].name);
+        else { document.getElementById("welcomeScreen").style.display = "flex"; document.getElementById("stockView").style.display = "none"; }
+        document.getElementById("stockInput").addEventListener("input", (e) => onStockSearch(e.target.value));
+        document.getElementById("addBtn").onclick = addStock;
+        document.getElementById("refreshBtn").onclick = () => { if (currentStock) loadStockData(); };
+        document.getElementById("periodDaily").onclick = function() { currentPeriod = "daily"; document.querySelectorAll(".period-btn").forEach(b=>b.classList.remove("active")); this.classList.add("active"); if(currentStock) loadStockData(); };
+        document.getElementById("periodWeekly").onclick = function() { currentPeriod = "weekly"; document.querySelectorAll(".period-btn").forEach(b=>b.classList.remove("active")); this.classList.add("active"); if(currentStock) loadStockData(); };
+        document.getElementById("periodMonthly").onclick = function() { currentPeriod = "monthly"; document.querySelectorAll(".period-btn").forEach(b=>b.classList.remove("active")); this.classList.add("active"); if(currentStock) loadStockData(); };
+        document.getElementById("cancelEventBtn").onclick = () => document.getElementById("eventModal").classList.remove("show");
+        document.getElementById("confirmEventBtn").onclick = addEventFromModal;
+        document.getElementById("clearAllEventsBtn").onclick = clearAllEvents;
+        document.getElementById("exportBtn").onclick = () => { let data = { watchlist, globalEvents, stockEventValues: Array.from(stockEventValues.entries()).map(([k,v])=>[k,Array.from(v.entries())]) }; let a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)],{type:"application/json"})); a.download = "events_backup.json"; a.click(); };
+        document.getElementById("importBtn").onclick = () => document.getElementById("importFile").click();
+        document.getElementById("importFile").onchange = e => { let file = e.target.files[0]; let reader = new FileReader(); reader.onload = ev => { let d = JSON.parse(ev.target.result); watchlist = d.watchlist; globalEvents = d.globalEvents; stockEventValues.clear(); for(let [code, arr] of d.stockEventValues){ let m=new Map(); for(let [id,v] of arr) m.set(id,v); stockEventValues.set(code,m); } sortGlobalEvents(); saveData(); renderWatchlist(); renderEventTable(); if(watchlist.length) selectStock(watchlist[0].code,watchlist[0].name); }; reader.readAsText(file); };
+        let handle = document.getElementById("resizeHandle"), wrapper = document.querySelector(".event-table-wrapper"), startY, startH;
+        handle.onmousedown = e => { startY = e.clientY; startH = wrapper.offsetHeight; document.onmousemove = me => { let delta = startY - me.clientY; wrapper.style.height = Math.min(500, Math.max(180, startH + delta)) + "px"; if(currentStock) drawKlineWithCrosshair(null, null); }; document.onmouseup = () => { document.onmousemove = null; }; };
+        window.addEventListener("resize", () => { if (currentStock && klineData.length) drawKlineWithCrosshair(null, null); });
+        document.addEventListener("click", (e) => { if (!e.target.closest(".search-box")) document.getElementById("searchDropdown").classList.remove("show"); });
+        // 启动实时数据刷新（初始+工作日定时检查 10:32/14:32/15:57）
+        startLiveDataRefresh();
+        // 实时列刷新按钮（事件委托）
+        document.getElementById('eventTable').addEventListener('click', (e) => {
+            const btn = e.target.closest('.live-refresh-btn');
+            if (btn) {
+                btn.style.transform = 'rotate(360deg)';
+                btn.style.transition = 'transform 0.6s';
+                setTimeout(() => { btn.style.transform = ''; btn.style.transition = ''; }, 600);
+                updateAllLiveData().then(() => updateLiveColumnDOM());
+                showToast('🔄 实时数据已刷新', 'info');
+            }
+        });
+
+        // 提醒弹窗事件
+        document.getElementById('confirmAlertBtn').onclick = saveAlertSettings;
+        document.getElementById('cancelAlertBtn').onclick = () => document.getElementById('alertModal').classList.remove('show');
+        document.getElementById('clearAlertBtn').onclick = clearAlertSettings;
+        document.getElementById('alertNotifyClose').onclick = () => document.getElementById('alertNotification').classList.remove('show');
+        // 点击通知弹窗外部可关闭
+        document.getElementById('alertNotification').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('show');
+        });
+
+        // 请求浏览器通知权限
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // 移动端触摸显示tooltip（桌面端hover仍生效）
+        const logoWrapper = document.querySelector('.app-logo-wrapper');
+        if (logoWrapper) {
+            logoWrapper.addEventListener('click', function(e) {
+                e.stopPropagation();
+                this.classList.toggle('tooltip-visible');
+            });
+            // 点击其他地方关闭tooltip
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.app-logo-wrapper')) {
+                    logoWrapper.classList.remove('tooltip-visible');
+                }
+            });
+        }
+    }
+    document.addEventListener("DOMContentLoaded", init);
+
+    // ======================== PWA Service Worker 注册 ========================
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('service-worker.js')
+                .then((registration) => {
+                    console.log('[App] Service Worker 注册成功:', registration.scope);
+                    
+                    // 检查更新
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // 有新版本可用
+                                if (confirm('📱 发现新版本，是否立即更新？')) {
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                    window.location.reload();
+                                }
+                            }
+                        });
+                    });
+                })
+                .catch((err) => {
+                    console.error('[App] Service Worker 注册失败:', err);
+                });
+        });
+
+        // 监听离线/在线状态
+        window.addEventListener('online', () => {
+            showToast('🌐 网络已恢复', 'success');
+        });
+        
+        window.addEventListener('offline', () => {
+            showToast('⚠️ 网络已断开，部分功能可能受限', 'info');
+        });
+    }
+	</script>
+	</body>
+</html>ccess');
+        });
+        
+        window.addEventListener('offline', () => {
+            showToast('⚠️ 网络已断开，部分功能可能受限', 'info');
+        });
+    }
+	</script>
+	</body>
+</html>

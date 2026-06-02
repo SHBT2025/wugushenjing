@@ -132,22 +132,64 @@
             font-size: 17px !important;
         }
 
+        /* 移动端顶部折叠按钮 */
+        .mobile-sidebar-toggle {
+            display: none;
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 20px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .mobile-sidebar-toggle:hover { background: var(--bg-tertiary); }
+
         /* 移动端适配 */
         @media (max-width: 768px) {
-            .app-logo-title {
-                font-size: 22px;
+            .mobile-sidebar-toggle { display: inline-block; }
+
+            .app-logo-title { font-size: 20px; }
+            .tooltip-content { max-width: 95vw; font-size: 14px; min-width: 280px; }
+            .tooltip-title { font-size: 16px; }
+            .tooltip-footer { font-size: 15px !important; }
+
+            /* header 压缩 */
+            .header { padding: 6px 10px; gap: 8px; }
+            .header .btn-sm { font-size: 10px; padding: 2px 6px; }
+
+            /* 主布局 → 垂直 */
+            .main-content { flex-direction: column; }
+
+            /* 侧边栏 → 顶部可折叠面板 */
+            .sidebar {
+                width: 100%;
+                max-height: 0;
+                overflow: hidden;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                transition: max-height 0.3s ease;
+                flex-shrink: 0;
             }
-            .tooltip-content {
-                max-width: 95vw;
-                font-size: 15px;
-                min-width: 300px;
-            }
-            .tooltip-title {
-                font-size: 17px;
-            }
-            .tooltip-footer {
-                font-size: 16px !important;
-            }
+            .sidebar.open { max-height: 420px; overflow-y: auto; }
+
+            .sidebar-section { padding: 10px 12px; }
+            .sidebar-title { font-size: 12px; margin-bottom: 6px; }
+
+            .stock-list { max-height: 180px; }
+
+            .search-input { font-size: 14px; padding: 6px 8px; }
+            .search-box .btn { padding: 6px 10px; font-size: 13px; }
+
+            /* 内容区域自适应 */
+            .content-area { flex: 1; min-height: 0; }
+
+            .toolbar { padding: 6px 8px; gap: 4px; flex-wrap: wrap; }
+            .stock-name-big { font-size: 16px; }
+            .price-info { font-size: 18px; }
+            .period-btn { padding: 4px 10px; font-size: 12px; }
         }
         .header-subtitle { font-size: 11px; color: var(--text-muted); }
         .btn { padding: 8px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; font-size: 14px; transition: all 0.15s; }
@@ -297,6 +339,7 @@
                 </div>
             </div>
         </div>
+        <button class="mobile-sidebar-toggle" id="sidebarToggle" title="菜单">☰</button>
         <div>
             <button class="btn btn-sm" id="exportBtn">📤 导出</button>
             <button class="btn btn-sm" id="importBtn">📥 导入</button>
@@ -1527,6 +1570,27 @@
         // 请求浏览器通知权限
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
+        }
+
+        // 移动端侧边栏折叠/展开
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebarToggle && sidebar) {
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('open');
+                this.textContent = sidebar.classList.contains('open') ? '✕' : '☰';
+            });
+            // 选中股票后自动折叠（移动端）
+            const origSelectStock = selectStock;
+            // 不覆盖，改用监听方式：在选股后折叠
+            document.getElementById('stockList').addEventListener('click', function(e) {
+                if (e.target.closest('.stock-item') && !e.target.closest('.stock-del') && !e.target.closest('.stock-alert-btn')) {
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.remove('open');
+                        sidebarToggle.textContent = '☰';
+                    }
+                }
+            });
         }
 
         // 移动端触摸显示tooltip（桌面端hover仍生效）

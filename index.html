@@ -247,17 +247,34 @@
         .event-table { border-collapse: collapse; font-size: 13px; min-width: 100%; table-layout: fixed; }
         .event-table th, .event-table td { border-right: 1px solid var(--border-color); border-bottom: 1px solid rgba(48, 54, 61, 0.4); padding: 6px 4px; text-align: center; vertical-align: middle; white-space: nowrap; transition: all 0.2s ease; }
         .event-table th { background: var(--bg-tertiary); position: sticky; top: 0; font-weight: 600; color: var(--accent-blue); min-width: 120px; }
-        .event-table th:first-child, .event-table td:first-child { background: var(--bg-secondary); position: sticky; left: 0; z-index: 2; font-weight: 600; text-align: left; min-width: 110px; }
+        .event-table th:first-child, .event-table td:first-child { background: var(--bg-secondary); position: sticky; left: 0; z-index: 2; font-weight: 600; text-align: left; min-width: 60px; max-width: 74px; width: 64px; }
         .event-table td:first-child { background: var(--bg-card); }
-        .event-table .col-hover { min-width: 210px !important; background-color: rgba(88, 166, 255, 0.2); }
-        /* 实时列：固定在表格最右侧 */
+        .event-table .col-hover:not(.live-col) { min-width: 210px !important; background-color: rgba(88, 166, 255, 0.2); }
+        /* 实时列：固定在表格最右侧，默认折叠（只露一条蓝边），点击展开 */
         .event-table th.live-col, .event-table td.live-col {
             position: sticky; right: 0; z-index: 3;
-            min-width: 170px;
+            min-width: 10px; width: 10px;
             border-left: 2px solid var(--accent-blue) !important;
+            overflow: hidden;
+            padding: 0 !important;
+            cursor: pointer;
+            transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease;
+            white-space: nowrap;
         }
         .event-table th.live-col { background: var(--bg-tertiary); }
         .event-table td.live-col { background: var(--bg-card); }
+        .event-table .live-col:not(.expanded) {
+            background: rgba(88,166,255,0.08) !important;
+        }
+        .event-table .live-col.expanded {
+            min-width: 128px; width: 128px;
+            padding: 6px 4px !important;
+            cursor: default;
+            overflow: visible;
+        }
+        .event-table .live-col:not(.expanded):hover {
+            background: rgba(88,166,255,0.2) !important;
+        }
         .sortable-drag { opacity: 0.5; background: var(--bg-tertiary); }
 
         /* 电池条样式 */
@@ -497,6 +514,12 @@
     let stockAlerts = new Map(); // code -> { priceAbove, priceBelow, rsiDaily, rsiWeekly, rsiMonthly }
     let alertedCache = new Map(); // "code_type" -> timestamp 防止重复通知
 
+    // ======================== 文件级常量 ========================
+    // 东方财富 API 认证 token（所有 push2/push2his 接口共用）
+    const UT_TOKEN = '7eea3edcaed734bea9c6b84d2b5e1e4c';
+    // 东方财富搜索 API token
+    const SEARCH_TOKEN = 'D43BF722C8E33BDC906FB84D85E326E8';
+
     function showToast(msg, type = "info") {
         let container = document.getElementById("toastContainer");
         let toast = document.createElement("div");
@@ -541,7 +564,7 @@
     async function searchStocks(keyword) {
         if (!keyword || keyword.length < 1) return [];
         try {
-            let url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&count=15`;
+            let url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&token=${SEARCH_TOKEN}&count=15`;
             let resp = await fetch(url);
             let data = await resp.json();
             if (data && data.QuotationCodeTable && data.QuotationCodeTable.Data) {
@@ -614,27 +637,69 @@
     }
 
     // API & RSI
-    function getSecId(code) { let c = String(code).replace(/[^0-9]/g, ''); return c.startsWith('6') ? `1.${c}` : `0.${c}`; }
+    function getSecId(code) {
+        let c = String(code).replace(/[^0-9]/g, '');
+        // 上海主板 (600xxx-605xxx) + 科创板 (688xxx) → secid: 1.xxx
+        if (c.startsWith('6')) return `1.${c}`;
+        // 深圳主板 (000xxx, 001xxx, 002xxx, 003xxx) + 创业板 (300xxx, 301xxx) → secid: 0.xxx
+        if (c.startsWith('0') || c.startsWith('3')) return `0.${c}`;
+        // 北交所 (8xxxxx: 82xxx/83xxx/87xxx/88xxx, 4xxxxx: 43xxx/46xxx) → secid: 0.xxx
+        if (c.startsWith('8') || c.startsWith('4')) return `0.${c}`;
+        // 默认深圳市场
+        return `0.${c}`;
+    }
     async function fetchKline(code, period) {
         let secid = getSecId(code);
         let klt = { daily: 101, weekly: 102, monthly: 103 }[period] || 101;
-        let url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&ut=7eea3edcaed734bea9c6b84d2b5e1e4c&klt=${klt}&fqt=1&secid=${secid}&end=20500101&lmt=500`;
-        let res = await fetch(url);
-        let data = await res.json();
-        if (data && data.data && data.data.klines) {
-            return data.data.klines.map(line => { let parts = line.split(','); return { date: parts[0], open: parseFloat(parts[1]), close: parseFloat(parts[2]), high: parseFloat(parts[3]), low: parseFloat(parts[4]), volume: parseFloat(parts[5]) }; });
+        let endDate = (new Date().getFullYear() + 10) + '0101';
+        let url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&ut=${UT_TOKEN}&klt=${klt}&fqt=1&secid=${secid}&end=${endDate}&lmt=500`;
+        try {
+            let res = await fetch(url);
+            let data = await res.json();
+            if (data && data.data && data.data.klines) {
+                return data.data.klines.map(line => { let parts = line.split(','); return { date: parts[0], open: parseFloat(parts[1]), close: parseFloat(parts[2]), high: parseFloat(parts[3]), low: parseFloat(parts[4]), volume: parseFloat(parts[5]) }; });
+            }
+        } catch (e) {
+            console.warn('[App] 东方财富K线API失败，尝试备用数据源:', e.message);
+        }
+        // Fallback: 腾讯财经K线接口
+        try {
+            let market = code.startsWith('6') ? 'sh' : 'sz';
+            let periodMap = { daily: 'day', weekly: 'week', monthly: 'month' };
+            let tencentPeriod = periodMap[period] || 'day';
+            let tencentUrl = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${market}${code},${tencentPeriod},,,500,qfq`;
+            let res = await fetch(tencentUrl);
+            let data = await res.json();
+            if (data && data.data) {
+                let stockData = data.data[`${market}${code}`];
+                if (stockData) {
+                    let klineData = stockData['qfq' + tencentPeriod] || stockData[tencentPeriod];
+                    if (klineData && klineData.length) {
+                        return klineData.map(item => ({
+                            date: String(item[0]),
+                            open: parseFloat(item[1]),
+                            close: parseFloat(item[2]),
+                            high: parseFloat(item[3]),
+                            low: parseFloat(item[4]),
+                            volume: parseFloat(item[5]) || 0
+                        }));
+                    }
+                }
+            }
+        } catch (e2) {
+            console.warn('[App] 腾讯财经K线API也失败:', e2.message);
         }
         return [];
     }
     async function fetchQuote(code) {
-        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170&ut=7eea3edcaed734bea9c6b84d2b5e1e4c`;
+        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170&ut=${UT_TOKEN}`;
         let res = await fetch(url);
         let data = await res.json();
         if (data && data.data) return { price: data.data.f43 / 100, changePct: data.data.f170 ? data.data.f170 / 100 : 0 };
         return null;
     }
     async function fetchStockName(code) {
-        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f57,f58&ut=7eea3edcaed734bea9c6b84d2b5e1e4c`;
+        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f57,f58&ut=${UT_TOKEN}`;
         let res = await fetch(url);
         let data = await res.json();
         if (data && data.data && data.data.f58) return { code: data.data.f57, name: data.data.f58 };
@@ -657,9 +722,26 @@
         if (!data.length) return [];
         let closes = data.map(d => d.close);
         let series = new Array(data.length).fill(null);
-        for (let i = 6; i < data.length; i++) {
-            let subCloses = closes.slice(0, i + 1);
-            series[i] = calcRSI6(subCloses);
+        if (closes.length < 7) return series;
+        // O(n) 增量计算: 使用Wilder平滑公式一次遍历
+        let period = 6, gains = 0, losses = 0;
+        for (let i = 1; i <= period; i++) {
+            let diff = closes[i] - closes[i - 1];
+            if (diff >= 0) gains += diff; else losses -= diff;
+        }
+        let avgGain = gains / period, avgLoss = losses / period;
+        series[period] = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(2));
+        // 增量计算后续值
+        for (let i = period + 1; i < closes.length; i++) {
+            let diff = closes[i] - closes[i - 1];
+            if (diff >= 0) {
+                avgGain = (avgGain * (period - 1) + diff) / period;
+                avgLoss = (avgLoss * (period - 1)) / period;
+            } else {
+                avgGain = (avgGain * (period - 1)) / period;
+                avgLoss = (avgLoss * (period - 1) - diff) / period;
+            }
+            series[i] = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(2));
         }
         return series;
     }
@@ -987,7 +1069,7 @@
             return;
         }
         let sortedEvents = [...globalEvents].sort((a, b) => a.timestamp - b.timestamp);
-        let headHtml = `<tr><th style="min-width:110px">股票 / 时间轴</th>`;
+        let headHtml = `<tr><th style="min-width:60px;max-width:74px;width:64px">股票 / 时间轴</th>`;
         for (let ev of sortedEvents) headHtml += `<th style="min-width:130px">${ev.datetimeStr}<button class="event-delete-btn" data-id="${ev.id}">🗑</button></th>`;
         headHtml += `<th class="live-col">⚡ 实时 <button class="live-refresh-btn" title="刷新实时数据">🔄</button></th></tr>`;
         thead.innerHTML = headHtml;
@@ -1480,28 +1562,59 @@
     function renderWatchlist() {
         let container = document.getElementById("stockList");
         if (!watchlist.length) { container.innerHTML = "<div style='padding:24px;text-align:center;font-size:15px;color:#6e7681'>暂无自选股</div>"; document.getElementById("watchlistCount").innerText = "0"; return; }
-        let html = "";
-        watchlist.forEach(s => {
-            let active = (currentStock && currentStock.code === s.code) ? "active" : "";
-            let hasAlert = stockAlerts.has(s.code) ? 'has-alert' : '';
-            let alertDot = stockAlerts.has(s.code) ? '<span class="stock-alert-dot"></span>' : '';
-            html += `<div class="stock-item ${active}" data-code="${s.code}" data-name="${s.name}">
-                        <div class="stock-info"><div class="stock-code">${s.code}</div><div class="stock-name">${s.name}</div></div>
-                        <button class="stock-alert-btn ${hasAlert}" data-code="${s.code}" title="设置提醒" style="position:relative;">🔔${alertDot}</button>
-                        <button class="btn btn-sm stock-del" data-code="${s.code}">✕</button>
-                     </div>`;
-        });
-        container.innerHTML = html;
         document.getElementById("watchlistCount").innerText = watchlist.length;
-        document.querySelectorAll(".stock-item").forEach(el => {
-            el.addEventListener("click", (e) => { if (!e.target.closest(".stock-del") && !e.target.closest(".stock-alert-btn")) selectStock(el.dataset.code, el.dataset.name); });
+        // 增量 DOM 更新：保留已有元素，仅更新状态和位置，避免 innerHTML 全量重绘造成闪烁
+        let existingItems = new Map();
+        container.querySelectorAll('.stock-item').forEach(el => existingItems.set(el.dataset.code, el));
+        let seenCodes = new Set();
+        watchlist.forEach((s, index) => {
+            seenCodes.add(s.code);
+            let active = (currentStock && currentStock.code === s.code) ? 'active' : '';
+            let hasAlert = stockAlerts.has(s.code) ? 'has-alert' : '';
+            let el = existingItems.get(s.code);
+            if (el) {
+                el.className = 'stock-item ' + active;
+                let alertBtn = el.querySelector('.stock-alert-btn');
+                if (alertBtn) {
+                    alertBtn.className = 'stock-alert-btn ' + hasAlert;
+                    let dot = alertBtn.querySelector('.stock-alert-dot');
+                    if (stockAlerts.has(s.code) && !dot) { let sp = document.createElement('span'); sp.className = 'stock-alert-dot'; alertBtn.appendChild(sp); }
+                    else if (!stockAlerts.has(s.code) && dot) dot.remove();
+                }
+                let curIdx = Array.from(container.children).indexOf(el);
+                if (curIdx !== index) {
+                    let ref = container.children[index];
+                    if (ref && ref !== el) container.insertBefore(el, ref);
+                    else if (!ref) container.appendChild(el);
+                }
+            } else {
+                let div = document.createElement('div');
+                div.className = 'stock-item ' + active;
+                div.dataset.code = s.code;
+                div.dataset.name = s.name;
+                let dotHtml = stockAlerts.has(s.code) ? '<span class="stock-alert-dot"></span>' : '';
+                div.innerHTML = '<div class="stock-info"><div class="stock-code">' + s.code + '</div><div class="stock-name">' + s.name + '</div></div>' +
+                    '<button class="stock-alert-btn ' + hasAlert + '" data-code="' + s.code + '" title="设置提醒" style="position:relative;">🔔' + dotHtml + '</button>' +
+                    '<button class="btn btn-sm stock-del" data-code="' + s.code + '">✕</button>';
+                div.addEventListener('click', function(e) { if (!e.target.closest('.stock-del') && !e.target.closest('.stock-alert-btn')) selectStock(div.dataset.code, div.dataset.name); });
+                div.querySelector('.stock-alert-btn').addEventListener('click', function(e) { e.stopPropagation(); openAlertModal(div.dataset.code); });
+                div.querySelector('.stock-del').addEventListener('click', function(e) {
+                    e.stopPropagation(); let code = div.dataset.code;
+                    watchlist = watchlist.filter(stk => stk.code !== code);
+                    stockAlerts.delete(code); saveData();
+                    if (currentStock?.code === code && watchlist.length) selectStock(watchlist[0].code, watchlist[0].name);
+                    else if (!watchlist.length) { currentStock = null; document.getElementById('welcomeScreen').style.display = 'flex'; document.getElementById('stockView').style.display = 'none'; }
+                    renderWatchlist(); renderEventTable();
+                    if (currentStock) drawKlineWithCrosshair(null, null);
+                });
+                let ref = container.children[index];
+                ref ? container.insertBefore(div, ref) : container.appendChild(div);
+            }
         });
-        document.querySelectorAll(".stock-alert-btn").forEach(btn => {
-            btn.addEventListener("click", (e) => { e.stopPropagation(); openAlertModal(btn.dataset.code); });
+        Array.from(container.children).forEach(el => {
+            if (el.classList.contains('stock-item') && !seenCodes.has(el.dataset.code)) el.remove();
         });
-        document.querySelectorAll(".stock-del").forEach(btn => {
-            btn.addEventListener("click", (e) => { e.stopPropagation(); let code = btn.dataset.code; watchlist = watchlist.filter(s => s.code !== code); stockAlerts.delete(code); saveData(); if (currentStock?.code === code && watchlist.length) selectStock(watchlist[0].code, watchlist[0].name); else if (!watchlist.length) { currentStock = null; document.getElementById("welcomeScreen").style.display = "flex"; document.getElementById("stockView").style.display = "none"; } renderWatchlist(); renderEventTable(); if (currentStock) drawKlineWithCrosshair(null, null); });
-        });
+        // 事件监听已通过增量更新的元素自身绑定，不再全局查询重绑
     }
 
     async function addStock() {
@@ -1554,6 +1667,17 @@
                 setTimeout(() => { btn.style.transform = ''; btn.style.transition = ''; }, 600);
                 updateAllLiveData().then(() => updateLiveColumnDOM());
                 showToast('🔄 实时数据已刷新', 'info');
+                return;
+            }
+            // 实时列折叠/展开切换（点击蓝色边条展开，点击展开后的列收起）
+            const liveCell = e.target.closest('.live-col');
+            if (liveCell) {
+                const allLiveCells = document.querySelectorAll('.live-col');
+                const expanding = !liveCell.classList.contains('expanded');
+                allLiveCells.forEach(cell => {
+                    if (expanding) cell.classList.add('expanded');
+                    else cell.classList.remove('expanded');
+                });
             }
         });
 
@@ -1639,15 +1763,6 @@
         // 监听离线/在线状态
         window.addEventListener('online', () => {
             showToast('🌐 网络已恢复', 'success');
-        });
-        
-        window.addEventListener('offline', () => {
-            showToast('⚠️ 网络已断开，部分功能可能受限', 'info');
-        });
-    }
-	</script>
-	</body>
-</html>ccess');
         });
         
         window.addEventListener('offline', () => {

@@ -360,6 +360,7 @@
         <div>
             <button class="btn btn-sm" id="exportBtn">📤 导出</button>
             <button class="btn btn-sm" id="importBtn">📥 导入</button>
+            <button class="btn btn-sm" id="settingsBtn" title="设置">⚙️ 设置</button>
             <input type="file" id="importFile" accept=".json" style="display:none">
         </div>
     </div>
@@ -499,6 +500,27 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- 设置弹窗 -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal" style="width:400px;">
+        <div style="font-weight:600; margin-bottom:16px; font-size:16px;">⚙️ 系统设置</div>
+        <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:13px; color:var(--text-secondary); margin-bottom:8px;">📡 数据源选择</label>
+            <select id="dataSourceSelect" style="width:100%; background:var(--bg-primary); border:1px solid var(--border-color); padding:8px 10px; color:white; border-radius:6px; font-size:14px;">
+                <option value="eastmoney">东方财富（主） + 腾讯财经（备）</option>
+                <option value="tencent">腾讯财经（主） + 东方财富（备）</option>
+            </select>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:6px;">
+                ⚡ 修改后刷新K线时生效。搜索和股票名称查询始终使用东方财富。
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <button class="btn" id="cancelSettingsBtn">取消</button>
+            <button class="btn btn-primary" id="confirmSettingsBtn">💾 保存设置</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ======================== 全局状态 ========================
     let watchlist = [];
@@ -509,6 +531,7 @@
     let stockEventValues = new Map();
     let pendingKlineIdx = null, pendingKlineDate = null, pendingClosePrice = null, pendingRsiVal = null;
     let currentHoverColumn = null, sortableInstance = null;
+    let expandedAll = false; let filteredEvents = [];
     let liveDataCache = new Map(); // code -> {price, rsi, changePct, updateTime}
     let liveDataCheckInterval = null; let lastScheduledRefresh = '';
     let stockAlerts = new Map(); // code -> { priceAbove, priceBelow, rsiDaily, rsiWeekly, rsiMonthly }
@@ -519,6 +542,10 @@
     const UT_TOKEN = '7eea3edcaed734bea9c6b84d2b5e1e4c';
     // 东方财富搜索 API token
     const SEARCH_TOKEN = 'D43BF722C8E33BDC906FB84D85E326E8';
+    // 数据源设置 localStorage key
+    const DATA_SOURCE_KEY = 'stockrsi_datasource';
+    // 当前数据源: 'eastmoney' (东方财富主,腾讯备) 或 'tencent' (腾讯主,东方财富备)
+    let dataSource = 'eastmoney';
 
     function showToast(msg, type = "info") {
         let container = document.getElementById("toastContainer");
@@ -550,13 +577,33 @@
                 stockEventValues.set(code, inner);
             }
             sortGlobalEvents();
+            // BUG-8 迁移: 为缺少stockCode的事件自动补充所属股票
+            for (let ev of globalEvents) {
+                if (!ev.stockCode) {
+                    for (let [code, mp] of stockEventValues.entries()) {
+                        let val = mp.get(ev.id);
+                        if (val && val.type !== 'passive') { ev.stockCode = code; break; }
+                    }
+                }
+            }
         }
         let aStore = localStorage.getItem("stockAlerts_mid2");
         if (aStore) {
             stockAlerts = new Map(JSON.parse(aStore));
         }
+        // 读取数据源设置
+        let ds = localStorage.getItem(DATA_SOURCE_KEY);
+        if (ds === 'eastmoney' || ds === 'tencent') dataSource = ds;
+        else dataSource = 'eastmoney';
         if (watchlist.length === 0) watchlist = [{ code: "600519", name: "贵州茅台" }, { code: "000858", name: "五粮液" }];
         saveData();
+    }
+
+    function getDataSource() { return dataSource; }
+    function setDataSource(ds) {
+        if (ds !== 'eastmoney' && ds !== 'tencent') return;
+        dataSource = ds;
+        localStorage.setItem(DATA_SOURCE_KEY, ds);
     }
 
     // 搜索API
@@ -648,7 +695,7 @@
         // 默认深圳市场
         return `0.${c}`;
     }
-    async function fetchKline(code, period) {
+    async function fetchKlineFromEastmoney(code, period) {
         let secid = getSecId(code);
         let klt = { daily: 101, weekly: 102, monthly: 103 }[period] || 101;
         let endDate = (new Date().getFullYear() + 10) + '0101';
@@ -659,16 +706,16 @@
             if (data && data.data && data.data.klines) {
                 return data.data.klines.map(line => { let parts = line.split(','); return { date: parts[0], open: parseFloat(parts[1]), close: parseFloat(parts[2]), high: parseFloat(parts[3]), low: parseFloat(parts[4]), volume: parseFloat(parts[5]) }; });
             }
-        } catch (e) {
-            console.warn('[App] 东方财富K线API失败，尝试备用数据源:', e.message);
-        }
-        // Fallback: 腾讯财经K线接口
+        } catch(e) { /* 失败返回null触发fallback */ }
+        return null;
+    }
+    async function fetchKlineFromTencent(code, period) {
         try {
             let market = code.startsWith('6') ? 'sh' : 'sz';
             let periodMap = { daily: 'day', weekly: 'week', monthly: 'month' };
             let tencentPeriod = periodMap[period] || 'day';
-            let tencentUrl = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${market}${code},${tencentPeriod},,,500,qfq`;
-            let res = await fetch(tencentUrl);
+            let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${market}${code},${tencentPeriod},,,500,qfq`;
+            let res = await fetch(url);
             let data = await res.json();
             if (data && data.data) {
                 let stockData = data.data[`${market}${code}`];
@@ -686,16 +733,72 @@
                     }
                 }
             }
-        } catch (e2) {
-            console.warn('[App] 腾讯财经K线API也失败:', e2.message);
+        } catch(e) { /* 失败返回null触发fallback */ }
+        return null;
+    }
+    async function fetchKline(code, period) {
+        if (getDataSource() === 'tencent') {
+            // 腾讯财经主用 → 东方财富备用
+            let data = await fetchKlineFromTencent(code, period);
+            if (data) return data;
+            console.warn('[App] 腾讯财经K线API失败，尝试东方财富备用数据源');
+            data = await fetchKlineFromEastmoney(code, period);
+            if (data) return data;
+        } else {
+            // 东方财富主用 → 腾讯财经备用（默认）
+            try {
+                let data = await fetchKlineFromEastmoney(code, period);
+                if (data) return data;
+            } catch(e) {
+                console.warn('[App] 东方财富K线API失败，尝试腾讯财经备用数据源:', e.message);
+            }
+            let data = await fetchKlineFromTencent(code, period);
+            if (data) return data;
         }
         return [];
     }
+    async function fetchQuoteEastmoney(code) {
+        try {
+            let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170&ut=${UT_TOKEN}`;
+            let res = await fetch(url);
+            let data = await res.json();
+            if (data && data.data) return { price: data.data.f43 / 100, changePct: data.data.f170 ? data.data.f170 / 100 : 0 };
+        } catch(e) { /* fallback */ }
+        return null;
+    }
+    async function fetchQuoteTencent(code) {
+        try {
+            let market = code.startsWith('6') ? 'sh' : 'sz';
+            let url = `https://qt.gtimg.cn/q=${market}${code}`;
+            let res = await fetch(url);
+            let text = await res.text();
+            let match = text.match(/"([^"]+)"/);
+            if (match) {
+                let fields = match[1].split('~');
+                if (fields.length >= 33) {
+                    let price = parseFloat(fields[3]);
+                    let changePct = parseFloat(fields[32]);
+                    if (!isNaN(price) && !isNaN(changePct)) return { price, changePct };
+                }
+            }
+        } catch(e) { /* fallback */ }
+        return null;
+    }
     async function fetchQuote(code) {
-        let url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${getSecId(code)}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170&ut=${UT_TOKEN}`;
-        let res = await fetch(url);
-        let data = await res.json();
-        if (data && data.data) return { price: data.data.f43 / 100, changePct: data.data.f170 ? data.data.f170 / 100 : 0 };
+        if (getDataSource() === 'tencent') {
+            let data = await fetchQuoteTencent(code);
+            if (data) return data;
+            console.warn('[App] 腾讯财经行情API失败，尝试东方财富备用');
+            data = await fetchQuoteEastmoney(code);
+            if (data) return data;
+        } else {
+            try {
+                let data = await fetchQuoteEastmoney(code);
+                if (data) return data;
+            } catch(e) {}
+            let data = await fetchQuoteTencent(code);
+            if (data) return data;
+        }
         return null;
     }
     async function fetchStockName(code) {
@@ -1028,7 +1131,7 @@
         if (existing) eventId = existing.id;
         else {
             eventId = Date.now() + "_" + Math.random();
-            globalEvents.push({ id: eventId, timestamp, datetimeStr: timeStr.replace('T', ' ') });
+            globalEvents.push({ id: eventId, timestamp, datetimeStr: timeStr.replace('T', ' '), stockCode: currentStock.code });
             sortGlobalEvents();
         }
         if (!stockEventValues.has(currentStock.code)) stockEventValues.set(currentStock.code, new Map());
@@ -1066,18 +1169,31 @@
             }
             tbody.innerHTML = emptyBody || `<tr><td colspan="2" style="text-align:center;color:#6e7681">暂无事件，点击K线添加买/卖/标记</td></tr>`;
             if (sortableInstance) sortableInstance.destroy();
+            // 更新展开按钮可见性
+            updateExpandBtnVisibility();
             return;
         }
         let sortedEvents = [...globalEvents].sort((a, b) => a.timestamp - b.timestamp);
-        let headHtml = `<tr><th style="min-width:60px;max-width:74px;width:64px">股票 / 时间轴</th>`;
-        for (let ev of sortedEvents) headHtml += `<th style="min-width:130px">${ev.datetimeStr}<button class="event-delete-btn" data-id="${ev.id}">🗑</button></th>`;
+        // BUG-8: 根据当前选中股票筛选列（默认只显示当前股票主动添加的事件列）
+        let eventsToShow;
+        if (!expandedAll && currentStock) {
+            eventsToShow = sortedEvents.filter(ev => !ev.stockCode || ev.stockCode === currentStock.code);
+        } else {
+            eventsToShow = sortedEvents;
+        }
+        filteredEvents = eventsToShow;
+        let hiddenCount = sortedEvents.length - eventsToShow.length;
+        let toggleLabel = expandedAll ? '🔍 只看当前股票' : `📋 展开所有列`;
+        if (!expandedAll && hiddenCount > 0) toggleLabel += ` (${hiddenCount}列隐藏)`;
+        let headHtml = `<tr><th style="min-width:60px;max-width:74px;width:64px">股票 / 时间轴 <button class="expand-all-btn" id="expandAllBtn" title="切换显示/隐藏其他股票的列">${toggleLabel}</button></th>`;
+        for (let ev of eventsToShow) headHtml += `<th style="min-width:130px">${ev.datetimeStr}<button class="event-delete-btn" data-id="${ev.id}">🗑</button></th>`;
         headHtml += `<th class="live-col">⚡ 实时 <button class="live-refresh-btn" title="刷新实时数据">🔄</button></th></tr>`;
         thead.innerHTML = headHtml;
         let tbodyHtml = "";
         for (let stock of watchlist) {
             let stockMap = stockEventValues.get(stock.code) || new Map();
             let row = `<tr><td style="font-weight:600;background:var(--bg-secondary);position:sticky;left:0;">${stock.code}<br><span style="font-size:10px">${stock.name}</span></td>`;
-            for (let ev of sortedEvents) row += `<td style="padding:4px;">${renderEventCell(stockMap.get(ev.id))}</td>`;
+            for (let ev of eventsToShow) row += `<td style="padding:4px;">${renderEventCell(stockMap.get(ev.id))}</td>`;
             row += `<td class="live-col" data-code="${stock.code}"></td></tr>`;
             tbodyHtml += row;
         }
@@ -1092,6 +1208,14 @@
                 if (currentStock) drawKlineWithCrosshair(null, null);
             });
         });
+        // 展开按钮事件
+        let expandBtn = document.getElementById("expandAllBtn");
+        if (expandBtn) {
+            expandBtn.addEventListener("click", () => {
+                expandedAll = !expandedAll;
+                renderEventTable();
+            });
+        }
         if (sortableInstance) sortableInstance.destroy();
         if (tbody) {
             sortableInstance = new Sortable(tbody, {
@@ -1408,8 +1532,8 @@
 
     async function checkAllAlerts() {
         if (!watchlist.length) return;
-        // 先获取需要的周/月RSI数据（并发限制3个，避免过多请求）
-        const CONCURRENCY = 3;
+        // 先获取需要的周/月RSI数据（并发限制5个，避免过多请求）
+        const CONCURRENCY = 5;
         const stocks = [...watchlist];
         for (let i = 0; i < stocks.length; i += CONCURRENCY) {
             const batch = stocks.slice(i, i + CONCURRENCY);
@@ -1417,7 +1541,7 @@
         }
         // 检查每个股票的提醒
         for (let stock of watchlist) {
-            await checkAlertsForStock(stock.code);
+            checkAlertsForStock(stock.code);
         }
     }
 
@@ -1652,6 +1776,19 @@
         document.getElementById("exportBtn").onclick = () => { let data = { watchlist, globalEvents, stockEventValues: Array.from(stockEventValues.entries()).map(([k,v])=>[k,Array.from(v.entries())]) }; let a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)],{type:"application/json"})); a.download = "events_backup.json"; a.click(); };
         document.getElementById("importBtn").onclick = () => document.getElementById("importFile").click();
         document.getElementById("importFile").onchange = e => { let file = e.target.files[0]; let reader = new FileReader(); reader.onload = ev => { let d = JSON.parse(ev.target.result); watchlist = d.watchlist; globalEvents = d.globalEvents; stockEventValues.clear(); for(let [code, arr] of d.stockEventValues){ let m=new Map(); for(let [id,v] of arr) m.set(id,v); stockEventValues.set(code,m); } sortGlobalEvents(); saveData(); renderWatchlist(); renderEventTable(); if(watchlist.length) selectStock(watchlist[0].code,watchlist[0].name); }; reader.readAsText(file); };
+        // ⚙️ 设置按钮
+        document.getElementById("settingsBtn").onclick = () => {
+            document.getElementById("dataSourceSelect").value = getDataSource();
+            document.getElementById("settingsModal").classList.add("show");
+        };
+        document.getElementById("cancelSettingsBtn").onclick = () => document.getElementById("settingsModal").classList.remove("show");
+        document.getElementById("confirmSettingsBtn").onclick = () => {
+            let newSource = document.getElementById("dataSourceSelect").value;
+            setDataSource(newSource);
+            document.getElementById("settingsModal").classList.remove("show");
+            showToast(`✅ 数据源已切换为 ${newSource === 'eastmoney' ? '东方财富（主）+ 腾讯财经（备）' : '腾讯财经（主）+ 东方财富（备）'}，刷新K线后生效`, "success");
+            if (currentStock) loadStockData();
+        };
         let handle = document.getElementById("resizeHandle"), wrapper = document.querySelector(".event-table-wrapper"), startY, startH;
         handle.onmousedown = e => { startY = e.clientY; startH = wrapper.offsetHeight; document.onmousemove = me => { let delta = startY - me.clientY; wrapper.style.height = Math.min(500, Math.max(180, startH + delta)) + "px"; if(currentStock) drawKlineWithCrosshair(null, null); }; document.onmouseup = () => { document.onmousemove = null; }; };
         window.addEventListener("resize", () => { if (currentStock && klineData.length) drawKlineWithCrosshair(null, null); });

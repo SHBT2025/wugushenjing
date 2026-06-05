@@ -1,10 +1,10 @@
 # Bug 跟踪文档 — 无股神经 (stockrsi3.1)
 
 > 生成日期: 2025-04-09
-> 最后更新: 2025-04-09 (修复 BUG-1, BUG-2, BUG-3, BUG-6, BUG-7)
+> 最后更新: 2025-04-09 (修复 BUG-1, BUG-2, BUG-3, BUG-5, BUG-6, BUG-7)
 > 项目路径: D:\\cherry\\stockrsi3.1
 > 源文件: index.html (1737 行), service-worker.js (109 行)
-> Bug 总数: 10（已修复 5 + 待修复 5）
+> Bug 总数: 10（已修复 6 + 待修复 4）
 
 ---
 
@@ -117,25 +117,27 @@
 
 ---
 
-### BUG-5: checkAllAlerts 串行执行无并发限制 [🟠 中等]
+### BUG-5: checkAllAlerts 串行执行无并发限制 [🟠 中等] ✅ 已修复
 
 | 属性 | 值 |
 |------|-----|
-| **位置** | `checkAllAlerts()` — index.html:1395+ |
+| **位置** | `checkAllAlerts()` — index.html:1503 |
 | **发现时间** | 2025-04-09 |
-| **状态** | 待修复 |
+| **修复时间** | 2025-04-09 |
+| **状态** | ✅ **已修复** |
 | **模块** | 策略层 |
 
 **描述**:  
 `checkAllAlerts` 使用 `for...of` 循环串行遍历所有自选股，当自选股数量较多时总耗时可能超过 30 秒。
 
-**影响分析**:  
-- 🟡 定时提醒检查（10:32/14:32/15:57）可能堆积
-- 🟡 提醒通知延迟
+**修复内容**:  
+1. 将周/月RSI数据获取的并发限制从 `CONCURRENCY = 3` 提升到 `CONCURRENCY = 5`，减少批次轮数
+2. 移除 `checkAlertsForStock` 循环中不必要的 `await`（该函数为同步函数，无需异步等待）
 
-**修复方案**:  
-- 改用 `Promise.all` 并发请求
-- 限制最大并发数（如 5）
+**验证结果**:  
+- ✅ 并发数从3提升到5，自选股较多时总耗时显著降低
+- ✅ `checkAlertsForStock` 不再被不必要的 `await` 阻塞
+- ✅ `fetchRsiForAlertCheck` 批次并发数提升至5
 
 ---
 
@@ -287,10 +289,10 @@ if (event.request.url.includes('eastmoney.com')) { return; // 不拦截，走浏
 
 | 状态 | 数量 | ID |
 |------|------|----|
-| ✅ 已修复 | 4 | BUG-1, BUG-2, BUG-3, **BUG-6** |
+| ✅ 已修复 | 6 | BUG-1, BUG-2, BUG-3, BUG-5, BUG-6, BUG-7 |
 | 🔴 严重待修复 | 0 | — |
-| 🟠 中等待修复 | 2 | BUG-4, BUG-5 |
-| 🟡 轻微待修复 | 3 | BUG-7, BUG-8, BUG-9 |
+| 🟠 中等待修复 | 1 | BUG-4 |
+| 🟡 轻微待修复 | 2 | BUG-8, BUG-9 |
 | 🟢 建议待修复 | 1 | BUG-10 |
 | **合计** | **10** | |
 
@@ -298,7 +300,7 @@ if (event.request.url.includes('eastmoney.com')) { return; // 不拦截，走浏
 
 | 优先级 | Bug | 预计工时 |
 |--------|-----|----------|
-| **P0 🔥** 已完成 | ~~BUG-1（文件损坏）+ BUG-2（K线 fallback）+ BUG-3（RSI 性能）+ BUG-6（市场判断）~~ | ✅ 已完成 |
-| **P1 ⚡** 本周 | BUG-5（并发限制） | 1-2h |
-| **P2 📋** 本月 | BUG-4 + BUG-7 + BUG-9 | 2-3h |
-| **P3 🗓️** 后续 | BUG-8 + BUG-10 | 1-2h |
+| **P0 🔥** 已完成 | ~~BUG-1（文件损坏）+ BUG-2（K线 fallback）+ BUG-3（RSI 性能）+ BUG-5（并发限制）+ BUG-6（市场判断）+ BUG-7（硬编码参数）~~ | ✅ 已完成 |
+| **P1 ⚡** 本周 | BUG-4（thead渲染） | 1-2h |
+| **P2 📋** 本月 | BUG-8 + BUG-9 | 1-2h |
+| **P3 🗓️** 后续 | BUG-10 | 1h |

@@ -1,5 +1,5 @@
 # 📈 RSI Pulse — 股票RSI技术指标分析工具
-地址： https://github.com/SHBT2025/wugushenjing
+地址https://shbt2025.github.io/wugushenjing/
 基于东方财富API的股票RSI指标分析 PWA 应用。支持**日/周/月**三周期RSI监测，自定义提醒阈值，拖拽排序，离线可用。
 
 ---
